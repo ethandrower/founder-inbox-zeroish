@@ -71,8 +71,10 @@ class Backend:
         return os.environ.get(self.spec.get("key_env", ""), "")
 
     def healthy(self) -> str | None:
-        """Optional health_url returning {"state": ...} or {"models": {model: {"state": ...}}}.
-        Only "ok" and "busy" get work. None = healthy or no health check configured."""
+        """Optional health_url returning {"state": ...} or {"models": {model: {"state": ..., "validation":
+        {"passed": n, "total": m}}}}. Only "ok" and "busy" get work, and a model whose last validation run had
+        failures is skipped even if it says "ok" (healthy is not the same as correct).
+        None = usable, or no health check configured."""
         url = self.spec.get("health_url")
         if not url:
             return None
@@ -81,11 +83,19 @@ class Backend:
                 req = urllib.request.Request(url, headers={"Authorization": f"Bearer {self.key()}"})
                 with urllib.request.urlopen(req, timeout=5) as r:
                     s = json.load(r)
-                m = (s.get("models") or {}).get(self.spec.get("model")) or {}
-                self._health = m.get("state") or s.get("state", "unknown")
+                self._health = self.judge(s, self.spec.get("model"))
             except (urllib.error.URLError, OSError, ValueError):
                 self._health = "unreachable"
         return None if self._health in ("ok", "busy") else self._health
+
+    @staticmethod
+    def judge(status: dict, model: str | None) -> str:
+        m = (status.get("models") or {}).get(model) or {}
+        state = m.get("state") or status.get("state", "unknown")
+        v = m.get("validation") or {}
+        if v.get("total") and (v.get("passed") or 0) < v["total"]:
+            return f"failing validation ({v.get('passed') or 0}/{v['total']})"
+        return state
 
     def ask(self, system: str, text: str, timeout: float) -> str:
         if not self.key():

@@ -200,6 +200,25 @@ class Classifier(unittest.TestCase):
             with self.assertRaisesRegex(classify.Unavailable, "overloaded, skipped"):
                 c("m1", "text")
 
+    def test_health_judgement(self):
+        j = classify.Backend.judge
+        self.assertEqual(j({"models": {"a": {"state": "ok"}}}, "a"), "ok")
+        self.assertEqual(j({"models": {"a": {"state": "ok", "validation": {"passed": 0, "total": 8}}}}, "a"),
+                         "failing validation (0/8)")
+        self.assertEqual(j({"models": {"a": {"state": "busy", "validation": {"passed": 8, "total": 8}}}}, "a"), "busy")
+        self.assertEqual(j({"state": "overloaded", "models": {}}, "b"), "overloaded")
+
+    def test_falls_through_to_the_next_backend(self):
+        c = classify.Classifier({**CFG, "classifier": {**CFG["classifier"], "backends": [
+            {"name": "first", "type": "openai", "url": "http://x", "model": "a", "key_env": "K"},
+            {"name": "second", "type": "openai", "url": "http://x", "model": "b", "key_env": "K"}]}})
+        c.backends[0]._health = "overloaded"
+        c.backends[0].spec["health_url"] = c.backends[1].spec["health_url"] = "http://x/status"
+        c.backends[1]._health = "ok"
+        with mock.patch.object(c.backends[1], "ask", return_value='{"category":"digest","confidence":0.9}'):
+            out = c("m1", "text")
+        self.assertEqual((out["category"], out["backend"]), ("digest", "second"))
+
     def test_cache(self):
         path = os.path.join(tempfile.mkdtemp(), "c.json")
         cache = classify.Cache(path)
