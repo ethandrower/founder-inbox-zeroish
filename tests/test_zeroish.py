@@ -213,6 +213,26 @@ class Facts(unittest.TestCase):
         self.assertEqual((replied.replied, again.replied), ("after_latest", "before_latest"))
 
 
+class Eval(unittest.TestCase):
+    def test_outcome_scoring_separates_harmless_from_harmful(self):
+        path = os.path.join(tempfile.mkdtemp(), "labels.jsonl")
+        with open(path, "w") as fh:
+            for ex in ({"from": "a@x.example", "subject": "promo", "expect": "newsletter", "sender": "unknown"},
+                       {"from": "b@x.example", "subject": "deal", "expect": "prospect", "sender": "unknown"},
+                       {"from": "c@x.example", "subject": "cpu", "expect": "notification", "sender": "unknown"}):
+                fh.write(json.dumps(ex) + "\n")
+        answers = iter(["vendor_pitch", "vendor_pitch", "digest"])  # harmless, HARMFUL, harmless
+
+        def clf_fake(mid, text):
+            return {"category": next(answers), "confidence": 0.95, "reason": ""}
+        out = engine.evaluate_labels(CFG, path, clf_fake)
+        self.assertEqual(out["label_accuracy"], 0.0)
+        self.assertEqual(out["harmful"], 1)
+        bad = [m for m in out["misses"] if m["harmful"]]
+        self.assertEqual(bad[0]["subject"], "deal")
+        self.assertEqual(bad[0]["would_go"], "Cold Outreach")
+
+
 class NewCustomers(unittest.TestCase):
     """A customer you've never emailed must still never land in Cold Outreach."""
 

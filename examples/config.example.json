@@ -27,8 +27,8 @@
       "means": "a sales conversation you are pursuing: a lead, demo, proposal, RFP, or a prospect replying"
     },
     "internal": {
-      "means": "colleagues, or internal tools posting about internal work",
-      "not": "A colleague writing about a specific customer's project, deliverable or invoice is client, not internal."
+      "means": "a colleague writing to you as a person about internal work",
+      "not": "Automated posts from internal tools (Confluence, Jira, scheduled job summaries, monitoring) are notification or digest, not internal. A colleague writing about a specific customer's project, deliverable or invoice is client, not internal."
     },
     "investor": {
       "means": "a genuine VC firm, bank or established financial institution writing about your company",

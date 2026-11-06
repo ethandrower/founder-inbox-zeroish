@@ -249,7 +249,7 @@ def explain(cfg: dict, mbx, msg_id: str, pass_name: str = "all", classifier=None
 def evaluate_labels(cfg: dict, path: str, classifier=None) -> dict:
     """Accuracy of the classifier on labelled emails (JSONL: from, subject, body, expect)."""
     classifier = classifier or clf.Classifier(cfg)  # no cache: measure the model, not old answers
-    total, right, errors, misses = 0, 0, 0, []
+    total, right, errors, misses, same_outcome, harmful = 0, 0, 0, [], 0, 0
     with open(path) as fh:
         for i, line in enumerate(fh):
             if not line.strip():
@@ -264,10 +264,35 @@ def evaluate_labels(cfg: dict, path: str, classifier=None) -> dict:
                 errors += 1
                 misses.append({"line": i + 1, "expect": ex["expect"], "got": None, "error": str(e)[:120]})
                 continue
+            want_to, got_to = _outcome(cfg, ex, ex["expect"]), _outcome(cfg, ex, got)
             if got == ex["expect"]:
                 right += 1
-            else:
-                misses.append({"line": i + 1, "subject": ex.get("subject"), "expect": ex["expect"], "got": got})
+            if got_to == want_to:
+                same_outcome += 1
+            if got != ex["expect"]:
+                harm = _harmful(cfg, want_to, got_to)
+                harmful += bool(harm)
+                misses.append({"line": i + 1, "subject": ex.get("subject"), "expect": ex["expect"], "got": got,
+                               "should_go": want_to, "would_go": got_to, "harmful": harm})
     scored = total - errors
-    return {"total": total, "scored": scored, "correct": right,
-            "accuracy": round(right / scored, 3) if scored else None, "unavailable": errors, "misses": misses}
+    return {"total": total, "scored": scored, "label_accuracy": round(right / scored, 3) if scored else None,
+            "outcome_accuracy": round(same_outcome / scored, 3) if scored else None, "harmful": harmful,
+            "unavailable": errors, "misses": misses}
+
+
+def _outcome(cfg: dict, ex: dict, category: str) -> str:
+    """Where an email ends up under the real rules, given a category. Read, 2 days old, no reply."""
+    f = rules_mod.Facts(sender_kind=ex.get("sender", "unknown"), age_h=48.0, read=True, replied="never")
+    d = rules_mod.evaluate(cfg["rules"], f, "all",
+                           lambda: {"category": category, "confidence": 1.0, "reason": ""}, cfg.get("stale"))
+    return d.to if d.action == "move" else "Inbox"
+
+
+def _harmful(cfg: dict, want: str, got: str) -> str | None:
+    """A miss is harmful if mail that should stay leaves, or lands in a fast-pass folder (out within minutes)."""
+    fast_folders = {r.then for r in cfg["rules"] if not r.keeps and r.passes == ("fast",)}
+    if want == "Inbox" and got != "Inbox":
+        return f"should stay in the inbox but would go to {got}"
+    if got in fast_folders and want not in fast_folders:
+        return f"would be filed into {got} straight away instead of {want}"
+    return None
