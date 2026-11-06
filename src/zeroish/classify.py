@@ -184,11 +184,6 @@ class Cache:
         self.data[key] = {"c": {k: c[k] for k in ("category", "confidence", "reason")}, "v": self.version,
                           "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
 
-
-def prompt_version(cfg: dict) -> str:
-    import hashlib
-    return hashlib.sha256(build_prompt(cfg).encode()).hexdigest()[:12]
-
     def save(self):
         cutoff = datetime.now(timezone.utc).timestamp() - self.keep_days * 86400
         self.data = {k: v for k, v in self.data.items() if datetime.fromisoformat(v["at"]).timestamp() >= cutoff}
@@ -197,3 +192,9 @@ def prompt_version(cfg: dict) -> str:
         with open(tmp, "w") as fh:
             json.dump(self.data, fh)
         os.replace(tmp, self.path)
+
+
+def prompt_version(cfg: dict) -> str:
+    """Fingerprint of the classifier prompt (categories + tie-breakers): cached answers are only reused for it."""
+    import hashlib
+    return hashlib.sha256(build_prompt(cfg).encode()).hexdigest()[:12]
