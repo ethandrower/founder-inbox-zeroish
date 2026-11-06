@@ -1,0 +1,18 @@
+[project]
+name = "founder-inbox-zeroish"
+dynamic = ["version"]
+description = "Rules-based inbox triage for Microsoft 365: one LLM classifier, declarative rules, hard guardrails."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+zeroish = "zeroish.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = { attr = "zeroish.__version__" }

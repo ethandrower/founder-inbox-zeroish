@@ -1,0 +1,10 @@
+{"from": "rep@leadgen.example", "subject": "Quick question", "body": "Sam, are you open to 20 new qualified demos a month? 15 minutes Tuesday?", "expect": "vendor_pitch"}
+{"from": "funding@fastcash.example", "subject": "Acme's bridge line", "body": "Acme may qualify for up to 500k in financing, funded in 24 to 48 hours. No fee to see what you qualify for.", "expect": "capital_pitch"}
+{"from": "analyst@advisorygroup.example", "subject": "investment inquiry", "body": "Private investment groups we advise are seeking companies like yours.", "expect": "capital_pitch"}
+{"from": "news@saasco.example", "subject": "Introducing workflows 2.0", "body": "Our biggest release yet. Read the announcement. Manage your subscription.", "expect": "newsletter"}
+{"from": "alerts@cloud.example", "subject": "Monitoring triggered: CPU is running high", "body": "Metric is at 97, above 90 for 5m.", "expect": "notification"}
+{"from": "jira@yourcompany.atlassian.net", "subject": "Your weekly update", "body": "Reply to 3 mentions. Space updates this week.", "expect": "digest"}
+{"from": "dse@docusign.example", "subject": "Action required: please sign the policy acknowledgment", "body": "Review and sign by Friday.", "expect": "action_needed"}
+{"from": "buyer@customer.example", "subject": "Re: renewal quote", "body": "Thanks, can you send the updated quote with two extra seats?", "expect": "client"}
+{"from": "events@medtechsummit.example", "subject": "Invitation: speak at MedTech Summit 2027", "body": "We'd like you on our regulatory panel in June.", "expect": "pr_marketing"}
+{"from": "partner@bigfund.vc", "subject": "Quarterly check-in", "body": "Would love to hear how Q4 is shaping up before our partner meeting.", "expect": "investor"}
