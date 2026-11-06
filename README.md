@@ -28,8 +28,8 @@ A rule is conditions plus an action. Conditions are **facts**, never prompt text
 |---|---|
 | `category` | one or more of your configured categories (the only LLM-derived fact) |
 | `min_confidence` | defaults to `classifier.min_confidence` |
-| `sender` | `priority`, `internal`, `correspondent` (you've emailed them), `unknown` |
-| `trusted` | `true` for priority/internal/correspondent |
+| `sender` | `priority`, `internal`, `known` (your CRM's customers via `senders.known_file`), `correspondent` (you've emailed them), `team_thread` (a colleague is on To/Cc), `unknown` |
+| `trusted` | `true` for anything but `unknown`, so a new customer whose email CCs your team is never "cold" |
 | `min_age_h`, `max_age_h` | hours since it arrived |
 | `read` | opened or not |
 | `replied` | `never`, `before_latest` (they wrote again after your reply), `after_latest` (you replied last) |
@@ -40,6 +40,10 @@ A rule is conditions plus an action. Conditions are **facts**, never prompt text
 {"id": "cold-outreach", "when": {"category": ["vendor_pitch", "capital_pitch"], "trusted": false},
  "then": "Cold Outreach", "pass": "fast"}
 ```
+
+**Inbox zero backstop (`stale`).** After `stale.after_days` (e.g. 30), nothing stays. The first move rule that
+fits sends the email to its folder, with `relax`ed conditions such as `read` ignored. Keep rules stop protecting it.
+Anything unmatched goes to `stale.then` (e.g. Archive). This applies in the cleanup pass only.
 
 **Keeping rules sane as they grow:**
 - **Need a new distinction? Add a category, not a prompt.** A category is one `means` line, plus an optional
@@ -60,8 +64,14 @@ A rule is conditions plus an action. Conditions are **facts**, never prompt text
    classifier backends. Any OpenAI-compatible server works (Ollama, vLLM, llama.cpp...), as does Anthropic.
 4. `zeroish auth login`, then `zeroish lint --online`.
 5. `zeroish run --pass fast` shows what *would* move. Add `--apply` once you agree.
-6. Schedule it: `zeroish run --pass fast --apply` every 10–15 minutes, and `zeroish run --pass cleanup --apply`
-   daily.
+6. Schedule two lanes every 10 minutes, each with a small batch. Runs never overlap, thanks to a lock.
+   ```cron
+   */10 * * * *  zeroish run --pass fast --since 2h --limit 25 --apply             # new mail: pitches and promos out
+   5-59/10 * * * * zeroish run --pass cleanup --sweep --limit 20 --apply          # backlog, oldest first, bookmarked
+   ```
+7. Watch it: `zeroish status` reports last runs, moves per rule and folder, failures, and whether the classifier is
+   answering. It exits 3 when unhealthy (no recent run, a failed run, or most mail unclassified), so a heartbeat
+   check or chat bot can alert on it.
 
 ## Guardrails
 

@@ -28,7 +28,26 @@ def build_prompt(cfg: dict) -> str:
     return "\n".join(lines)
 
 
-def email_text(m: dict, body_chars: int = 1500) -> str:
+SENDER_CONTEXT = {
+    "priority": "the owner marked this sender as high priority",
+    "internal": "the sender is a colleague",
+    "known": "the sender's company is a known customer or open deal in the owner's CRM",
+    "correspondent": "the owner has emailed this sender's company before",
+    "team_thread": "a colleague of the owner is on this thread",
+    "unknown": "first contact: the owner has never emailed this sender",
+}
+
+
+def email_text(m: dict, body_chars: int = 1500, sender_kind: str | None = None) -> str:
+    """The email as the classifier sees it. `sender_kind` adds one line of verified context (from facts),
+    so the model can tell an ongoing customer or deal conversation from a cold pitch."""
+    text = _email_text(m, body_chars)
+    if sender_kind in SENDER_CONTEXT:
+        text = f"Context (verified): {SENDER_CONTEXT[sender_kind]}.\n" + text
+    return text
+
+
+def _email_text(m: dict, body_chars: int) -> str:
     sender = (m.get("from") or {}).get("emailAddress") or {}
     to = [((r or {}).get("emailAddress") or {}).get("address", "") for r in m.get("toRecipients") or []]
     cc = [((r or {}).get("emailAddress") or {}).get("address", "") for r in m.get("ccRecipients") or []]

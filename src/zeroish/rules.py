@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 PASSES = ("fast", "cleanup")
-SENDER_KINDS = ("priority", "internal", "correspondent", "unknown")
+SENDER_KINDS = ("priority", "internal", "known", "correspondent", "team_thread", "unknown")
 REPLIED = ("after_latest", "before_latest", "never")
 WHEN_KEYS = {"category", "min_confidence", "sender", "trusted", "min_age_h", "max_age_h", "read", "replied"}
 
@@ -98,7 +98,7 @@ class Facts:
 
     @property
     def trusted(self) -> bool:
-        return self.sender_kind in ("priority", "internal", "correspondent")
+        return self.sender_kind != "unknown"
 
 
 @dataclass
@@ -126,13 +126,40 @@ def _cheap_match(r: Rule, f: Facts) -> tuple[bool, str]:
     return True, ""
 
 
-def evaluate(rules: list[Rule], f: Facts, pass_name: str, classify) -> Decision:
+@dataclass(frozen=True)
+class Stale:
+    """Inbox-zero backstop: past `after_h`, nothing stays. Move rules apply with `relax`ed conditions ignored;
+    keep rules no longer protect; whatever matches no move rule goes to `then`. Cleanup pass only."""
+    after_h: float
+    then: str
+    relax: frozenset[str] = frozenset({"read"})
+
+
+def parse_stale(raw: dict | None) -> Stale | None:
+    if not raw:
+        return None
+    relax = frozenset(raw.get("relax", ["read"]))
+    if not relax <= {"read", "replied"}:
+        raise RuleError("stale.relax may only contain 'read' and 'replied'")
+    if not raw.get("then") or raw["then"] == "keep":
+        raise RuleError("stale.then must be a folder path")
+    return Stale(after_h=float(raw.get("after_days", 30)) * 24, then=raw["then"], relax=relax)
+
+
+def evaluate(rules: list[Rule], f: Facts, pass_name: str, classify, stale: Stale | None = None) -> Decision:
     """First matching rule wins. Content is classified only when a rule that needs it is reached.
-    If classification fails at that point, evaluation stops and the email is kept (fail closed)."""
+    If classification fails at that point, evaluation stops and the email is kept (fail closed).
+    Stale mail (cleanup pass, older than stale.after_h) skips keep rules and falls back to stale.then."""
+    is_stale = stale is not None and pass_name in ("cleanup", "all") and f.age_h >= stale.after_h
     trace = []
     for r in rules:
         if pass_name not in r.passes and pass_name != "all":
             continue
+        if is_stale:
+            if r.keeps:
+                trace.append((r.id, f"stale (> {stale.after_h / 24:g} days): keep rules no longer apply"))
+                continue
+            r = _relaxed(r, stale.relax)
         ok, why = _cheap_match(r, f)
         if ok and r.needs_content:
             if f.content is None and f.content_error is None:
@@ -156,7 +183,16 @@ def evaluate(rules: list[Rule], f: Facts, pass_name: str, classify) -> Decision:
         if r.keeps:
             return Decision("keep", r.id, why=reason or f"rule {r.id}", trace=trace)
         return Decision("move", r.id, to=r.then, why=reason or f"rule {r.id}", trace=trace)
+    if is_stale:
+        trace.append(("stale", "matched"))
+        return Decision("move", "stale", to=stale.then,
+                        why=f"older than {stale.after_h / 24:g} days and no rule placed it", trace=trace)
     return Decision("keep", None, why="no rule matched", trace=trace)
+
+
+def _relaxed(r: Rule, relax: frozenset[str]) -> Rule:
+    from dataclasses import replace
+    return replace(r, **{k: None for k in relax})
 
 
 # ── lint ───────────────────────────────────────────────────────────────

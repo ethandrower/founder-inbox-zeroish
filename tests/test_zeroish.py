@@ -130,6 +130,41 @@ class Rules(unittest.TestCase):
         self.assertEqual([t[0] for t in d.trace][-1], "notifications")
 
 
+class Stale(unittest.TestCase):
+    R, S = CFG["rules"], CFG["stale"]
+    OLD = 31 * 24
+
+    def test_unread_client_mail_is_filed_once_stale(self):
+        d = rules.evaluate(self.R, F("correspondent", age=self.OLD, read=False), "cleanup", fake("client"), self.S)
+        self.assertEqual((d.action, d.to, d.rule), ("move", "Customer Projects", "customers"))
+        fresh = rules.evaluate(self.R, F("correspondent", age=48, read=False), "cleanup", fake("client"), self.S)
+        self.assertEqual(fresh.action, "keep")
+
+    def test_no_matching_rule_means_archive(self):
+        d = rules.evaluate(self.R, F(age=self.OLD), "cleanup", fake("prospect"), self.S)
+        self.assertEqual((d.action, d.to, d.rule), ("move", "Archive", "stale"))
+
+    def test_keep_rules_stop_protecting_after_30_days(self):
+        for facts_, cat in ((F("priority", age=self.OLD), "other"), (F(age=self.OLD), "action_needed")):
+            d = rules.evaluate(self.R, facts_, "cleanup", fake(cat), self.S)
+            self.assertEqual((d.action, d.to), ("move", "Archive"), facts_)
+
+    def test_fast_pass_ignores_staleness(self):
+        d = rules.evaluate(self.R, F("priority", age=self.OLD), "fast", fake("other"), self.S)
+        self.assertEqual(d.action, "keep")
+
+    def test_classifier_down_keeps_stale_mail_for_next_run(self):
+        def down():
+            raise classify.Unavailable("x")
+        d = rules.evaluate(self.R, F(age=self.OLD), "cleanup", down, self.S)
+        self.assertEqual(d.action, "keep")
+
+    def test_bad_stale_config(self):
+        for bad in ({"then": "keep"}, {"then": "Archive", "relax": ["category"]}):
+            with self.assertRaises(rules.RuleError):
+                rules.parse_stale(bad)
+
+
 class Lint(unittest.TestCase):
     def parse(self, raw_rules):
         return rules.parse(raw_rules, set(RAW["categories"]), 0.85)
@@ -178,12 +213,49 @@ class Facts(unittest.TestCase):
         self.assertEqual((replied.replied, again.replied), ("after_latest", "before_latest"))
 
 
+class NewCustomers(unittest.TestCase):
+    """A customer you've never emailed must still never land in Cold Outreach."""
+
+    def test_colleague_on_thread_makes_it_trusted(self):
+        m = msg("m", "newbuyer@brandnew.example", "Question about the proposal")
+        m["ccRecipients"] = [{"emailAddress": {"address": "pm@yourcompany.com"}}]
+        f = facts.compute(m, CFG, facts.SentIndex([]), NOW)
+        self.assertEqual(f.sender_kind, "team_thread")
+        d = rules.evaluate(CFG["rules"], f, "fast", fake("vendor_pitch"))
+        self.assertEqual(d.action, "keep")
+
+    def test_owner_alone_on_to_line_is_not_a_team_thread(self):
+        m = msg("m", "rep@leadgen.example")
+        m["toRecipients"] = [{"emailAddress": {"address": "you@yourcompany.com"}}]
+        self.assertEqual(facts.compute(m, CFG, facts.SentIndex([]), NOW).sender_kind, "unknown")
+
+    def test_known_file_from_crm_sync(self):
+        path = os.path.join(tempfile.mkdtemp(), "known.txt")
+        with open(path, "w") as fh:
+            fh.write("# synced from CRM\nbrandnew.example\nsolo@gmail.com  # a consultant\n")
+        raw = json.loads(json.dumps(RAW))
+        raw["senders"]["known_file"] = path
+        cfg = config.normalise(raw)
+        for sender in ("ceo@brandnew.example", "solo@gmail.com"):
+            f = facts.compute(msg("m", sender), cfg, facts.SentIndex([]), NOW)
+            self.assertEqual(f.sender_kind, "known", sender)
+            self.assertEqual(rules.evaluate(cfg["rules"], f, "fast", fake("capital_pitch")).action, "keep")
+        raw["senders"]["known_file"] = "/nonexistent/known.txt"
+        self.assertEqual(config.normalise(raw)["senders"]["known"], set())  # failed sync never blocks triage
+
+
 class Classifier(unittest.TestCase):
     def test_prompt_is_built_from_taxonomy_only(self):
         p = classify.build_prompt(CFG)
         for name in CFG["categories"]:
             self.assertIn(f"- {name}:", p)
         self.assertIn("capital_pitch, not investor", p)
+
+    def test_sender_context_line(self):
+        m = msg("m", "buyer@customer.example", "Re: quote")
+        self.assertIn("known customer or open deal", classify.email_text(m, sender_kind="known"))
+        self.assertIn("first contact", classify.email_text(m, sender_kind="unknown"))
+        self.assertNotIn("Context", classify.email_text(m))
 
     def test_parse_reply(self):
         cats = set(CFG["categories"])
@@ -243,6 +315,11 @@ class FakeMailbox:
 
     def inbox(self, since, limit):
         return list(self._inbox.values())[:limit]
+
+    def inbox_oldest(self, after, limit):
+        msgs = sorted((m for m in self._inbox.values() if m["parentFolderId"] == "inbox"),
+                      key=lambda m: m["receivedDateTime"])
+        return [m for m in msgs if not after or m["receivedDateTime"] > after][:limit]
 
     def sent_history(self, n):
         return self._sent
@@ -331,6 +408,59 @@ class Engine(unittest.TestCase):
         planned = engine.plan(cfg, self.box, "fast", "x", 50, self.classifier, NOW)
         res = engine.apply(cfg, self.box, planned)
         self.assertEqual((res["moved"], res["skipped_over_cap"]), (1, 2))
+
+
+class Operations(unittest.TestCase):
+    """Backlog sweep bookmark, run lock and health status: what makes it safe to put on cron."""
+
+    def setUp(self):
+        self.cfg = cfg_with()
+        self.box = FakeMailbox([msg(f"m{i}", f"x{i}@somewhere.example", f"s{i}",
+                                    received=(NOW - timedelta(days=40 - i)).strftime("%Y-%m-%dT%H:%M:%SZ"))
+                                for i in range(5)])
+        self.clf = lambda mid, text: {"category": "prospect", "confidence": 0.9, "reason": "r"}
+
+    def test_sweep_walks_the_backlog_and_wraps(self):
+        seen = []
+        for _ in range(3):
+            p = engine.plan(self.cfg, self.box, "cleanup", None, 2, self.clf, NOW, sweep=True)
+            seen.append([r["id"] for r in p["to_move"] + p["kept"]])
+            engine.commit_sweep(self.cfg, p)
+        self.assertEqual(seen, [["m0", "m1"], ["m2", "m3"], ["m4"]])
+        self.assertIsNone(engine.read_state(self.cfg).get("sweep_after"))  # short page: back to the start
+
+    def test_stale_backlog_is_archived_by_the_sweep(self):
+        p = engine.plan(self.cfg, self.box, "cleanup", None, 5, self.clf, NOW, sweep=True)
+        self.assertEqual({r["to"] for r in p["to_move"]}, {"Archive"})  # 36–40 days old prospects: stale
+
+    def test_lock_blocks_a_second_run(self):
+        with engine.RunLock(self.cfg) as first:
+            with engine.RunLock(self.cfg) as second:
+                self.assertTrue(first)
+                self.assertFalse(second)
+
+    def test_status_reports_health(self):
+        self.assertFalse(engine.status(self.cfg, now=NOW)["healthy"])  # nothing ran yet
+        with mock.patch.object(engine, "datetime") as dt:
+            dt.now.return_value = NOW - timedelta(minutes=5)
+            dt.fromisoformat = datetime.fromisoformat
+            dt.fromtimestamp = datetime.fromtimestamp
+            engine.audit(self.cfg, {"cmd": "run", "lane": "new", "ok": True, "scanned": 10, "moved": 3,
+                                    "unclassified": 0})
+            engine.audit(self.cfg, {"cmd": "move", "to": "Cold Outreach", "rule": "cold-outreach"})
+        s = engine.status(self.cfg, now=NOW)
+        self.assertTrue(s["healthy"], s["problems"])
+        self.assertEqual(s["by_rule"], {"cold-outreach": 1})
+        later = engine.status(self.cfg, now=NOW + timedelta(hours=1))
+        self.assertFalse(later["healthy"])
+        self.assertIn("no new-mail run", later["problems"][0])
+
+    def test_status_flags_failures_and_a_dead_classifier(self):
+        engine.audit(self.cfg, {"cmd": "run", "lane": "new", "ok": False, "error": "Graph 401"})
+        s = engine.status(self.cfg)
+        self.assertIn("last new run failed: Graph 401", s["problems"])
+        engine.audit(self.cfg, {"cmd": "run", "lane": "new", "ok": True, "scanned": 10, "unclassified": 9})
+        self.assertTrue(any("unclassified" in p for p in engine.status(self.cfg)["problems"]))
 
 
 if __name__ == "__main__":

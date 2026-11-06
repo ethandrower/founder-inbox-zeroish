@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 
 from . import __version__, classify, config, engine, facts, graph, rules
 
@@ -37,14 +38,40 @@ def cmd_run(cfg, a):
     mbx = _mailbox(cfg)
     if mbx.user != cfg["owner"]["mailbox"]:
         raise PermissionError(f"signed in as {mbx.user}, config is for {cfg['owner']['mailbox']}")
-    planned = engine.plan(cfg, mbx, a.pass_name, facts.parse_since(a.since), a.limit or cfg["limits"]["scan_limit"])
-    if a.apply:
-        planned["applied"] = engine.apply(cfg, mbx, planned)
+    lane = "sweep" if a.sweep else "new"
+    with engine.RunLock(cfg) as got:
+        if not got:
+            engine.audit(cfg, {"cmd": "skip", "lane": lane, "why": "previous run still going"})
+            return {"skipped": "a previous run is still going"}
+        started = time.time()
+        try:
+            planned = engine.plan(cfg, mbx, a.pass_name, None if a.sweep else facts.parse_since(a.since),
+                                  a.limit or cfg["limits"]["scan_limit"], sweep=a.sweep)
+            applied = engine.apply(cfg, mbx, planned) if a.apply else None
+            if a.apply or not a.sweep:
+                engine.commit_sweep(cfg, planned)  # a dry sweep doesn't advance the bookmark
+        except Exception as e:  # noqa: BLE001 - recorded for `zeroish status`, then re-raised
+            engine.audit(cfg, {"cmd": "run", "lane": lane, "pass": a.pass_name, "ok": False,
+                               "error": str(e)[:200], "duration_s": round(time.time() - started, 1)})
+            raise
+        engine.audit(cfg, {"cmd": "run", "lane": lane, "pass": a.pass_name, "ok": True, "apply": a.apply,
+                           "scanned": planned["scanned"], "to_move": len(planned["to_move"]),
+                           "moved": (applied or {}).get("moved", 0), "refused": len((applied or {}).get("refused", [])),
+                           "unclassified": planned["unclassified"], "withheld": planned["withheld_sensitive"],
+                           "duration_s": round(time.time() - started, 1)})
+    if applied is not None:
+        planned["applied"] = applied
     else:
         planned["next"] = "review to_move; re-run with --apply to move exactly what the rules decide"
     if a.brief:
         planned["kept"] = [{k: r[k] for k in ("from", "subject", "rule", "why")} for r in planned["kept"]]
     return planned
+
+
+def cmd_status(cfg, a):
+    out = engine.status(cfg, a.hours, a.max_gap_min)
+    a._exit = 0 if out["healthy"] else 3
+    return out
 
 
 def cmd_explain(cfg, a):
@@ -82,7 +109,13 @@ def build_parser():
     ru.add_argument("--limit", type=int)
     ru.add_argument("--apply", action="store_true", help="move what the rules decide")
     ru.add_argument("--brief", action="store_true", help="shorter 'kept' list")
+    ru.add_argument("--sweep", action="store_true",
+                    help="backlog lane: oldest first from a saved bookmark, --limit per run")
     ru.set_defaults(fn=cmd_run)
+    st = sub.add_parser("status", help="health from the audit log; exit 3 when unhealthy")
+    st.add_argument("--hours", type=float, default=24)
+    st.add_argument("--max-gap-min", type=float, default=25, help="alert if no new-mail run for this long")
+    st.set_defaults(fn=cmd_status)
     ex = sub.add_parser("explain", help="facts and every rule's verdict for one email")
     ex.add_argument("--id", required=True)
     ex.add_argument("--pass", dest="pass_name", choices=["fast", "cleanup", "all"], default="all")
@@ -100,7 +133,7 @@ def main(argv=None):
         cfg = config.load(a.config)
         out = a.fn(cfg, a)
         code = 2 if a.fn is cmd_lint and any(not x.startswith("categories with no rule") for x in out["problems"]) \
-            else 0
+            else getattr(a, "_exit", 0)
     except (config.ConfigError, PermissionError) as e:
         out, code = {"refused": str(e)}, 2
     except (graph.GraphError, classify.Unavailable, OSError) as e:

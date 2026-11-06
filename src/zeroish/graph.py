@@ -214,6 +214,14 @@ class Mailbox:
                                 "$filter": f"receivedDateTime ge {since_iso}", "$orderby": "receivedDateTime desc"},
                         headers={"Prefer": 'outlook.body-content-type="text"'}).get("value", [])
 
+    def inbox_oldest(self, after_iso: str | None, limit: int) -> list[dict]:
+        """Oldest-first page of the inbox, strictly after `after_iso` (the backlog sweep's bookmark)."""
+        params = {"$top": str(limit), "$select": self.INBOX_FIELDS + ",body", "$orderby": "receivedDateTime asc"}
+        if after_iso:
+            params["$filter"] = f"receivedDateTime gt {after_iso}"
+        return self.get("/me/mailFolders/inbox/messages", params=params,
+                        headers={"Prefer": 'outlook.body-content-type="text"'}).get("value", [])
+
     def message(self, msg_id: str) -> dict:
         return self.get(f"/me/messages/{msg_id}", params={"$select": self.INBOX_FIELDS + ",body"},
                         headers={"Prefer": 'outlook.body-content-type="text"'})

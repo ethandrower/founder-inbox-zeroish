@@ -29,11 +29,13 @@ def _row(m: dict) -> dict:
             "subject": m.get("subject"), "received": m.get("receivedDateTime")}
 
 
-def plan(cfg: dict, mbx, pass_name: str, since_iso: str, limit: int, classifier=None,
-         now: datetime | None = None, workers: int = 2) -> dict:
-    """Decide every inbox email since `since_iso`. Moves nothing."""
+def plan(cfg: dict, mbx, pass_name: str, since_iso: str | None, limit: int, classifier=None,
+         now: datetime | None = None, workers: int = 2, sweep: bool = False) -> dict:
+    """Decide inbox email. Default: newest first since `since_iso`. sweep=True: oldest first from the saved
+    bookmark, so a small batch per run works through the whole backlog over time. Moves nothing."""
     now = now or datetime.now(timezone.utc)
-    msgs = mbx.inbox(since_iso, limit)
+    bookmark = read_state(cfg).get("sweep_after") if sweep else None
+    msgs = mbx.inbox_oldest(bookmark, limit) if sweep else mbx.inbox(since_iso, limit)
     sent = facts_mod.SentIndex(mbx.sent_history(cfg["limits"]["sent_lookback"]))
     classifier = classifier or clf.Classifier(cfg, clf.Cache(cfg["classifier"]["cache_path"]))
 
@@ -41,8 +43,8 @@ def plan(cfg: dict, mbx, pass_name: str, since_iso: str, limit: int, classifier=
         if cfg["sensitive"].reason(m, "Inbox"):
             return m, None, None
         f = facts_mod.compute(m, cfg, sent, now)
-        text = clf.email_text(m)
-        d = rules_mod.evaluate(cfg["rules"], f, pass_name, lambda: classifier(m["id"], text))
+        text = clf.email_text(m, sender_kind=f.sender_kind)
+        d = rules_mod.evaluate(cfg["rules"], f, pass_name, lambda: classifier(m["id"], text), cfg.get("stale"))
         return m, f, d
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -60,15 +62,123 @@ def plan(cfg: dict, mbx, pass_name: str, since_iso: str, limit: int, classifier=
         rows.append({**_row(m), "action": d.action, "rule": d.rule, "to": d.to, "why": d.why,
                      "category": (f.content or {}).get("category"), "sender": f.sender_kind,
                      "read": f.read, "replied": f.replied, "age_h": round(f.age_h, 1)})
-    out = {"pass": pass_name, "scanned": len(msgs), "withheld_sensitive": withheld,
+    out = {"pass": pass_name, "lane": "sweep" if sweep else "new", "scanned": len(msgs),
+           "withheld_sensitive": withheld,
            "priority": [r for r in rows if r["sender"] == "priority"],
            "to_move": [r for r in rows if r["action"] == "move"],
            "kept": [r for r in rows if r["action"] == "keep"]}
     if unclassified:
         out["warning"] = f"{unclassified} email(s) not classified (no LLM answered); they stay in the inbox"
-    audit(cfg, {"cmd": "plan", "pass": pass_name, "scanned": len(msgs), "withheld": withheld,
-                "to_move": len(out["to_move"]), "unclassified": unclassified})
+    out["unclassified"] = unclassified
+    if sweep:
+        # Short page = reached the present: start again from the oldest next time (age rules keep ripening).
+        out["sweep_from"] = bookmark
+        out["sweep_next"] = msgs[-1]["receivedDateTime"] if len(msgs) >= limit else None
     return out
+
+
+def commit_sweep(cfg: dict, planned: dict):
+    """Advance the sweep bookmark. Call only after the batch was applied (or deliberately skipped)."""
+    if planned.get("lane") == "sweep":
+        state = read_state(cfg)
+        state["sweep_after"] = planned.get("sweep_next")
+        write_state(cfg, state)
+
+
+# ── state, lock, health ───────────────────────────────────────────────
+def _state_path(cfg: dict, name: str) -> str:
+    return os.path.join(os.path.dirname(os.path.expanduser(cfg["audit_log"])) or ".", name)
+
+
+def read_state(cfg: dict) -> dict:
+    try:
+        with open(_state_path(cfg, "state.json")) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {}
+
+
+def write_state(cfg: dict, state: dict):
+    path = _state_path(cfg, "state.json")
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path + ".tmp", "w") as fh:
+        json.dump(state, fh)
+    os.replace(path + ".tmp", path)
+
+
+class RunLock:
+    """One run at a time per mailbox. A slow run (busy LLM) is never overlapped by the next cron tick."""
+
+    def __init__(self, cfg: dict):
+        self.path = _state_path(cfg, "run.lock")
+        self.fh = None
+
+    def __enter__(self):
+        import fcntl
+        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        self.fh = open(self.path, "w")
+        try:
+            fcntl.flock(self.fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            self.fh.close()
+            self.fh = None
+        return self.fh is not None
+
+    def __exit__(self, *exc):
+        if self.fh:
+            self.fh.close()
+
+
+def status(cfg: dict, hours: float = 24, max_gap_min: float = 25, now: datetime | None = None) -> dict:
+    """Health from the audit log: is it running, is it moving mail, is anything failing. For humans and cron."""
+    now = now or datetime.now(timezone.utc)
+    since = now.timestamp() - hours * 3600
+    runs, moves = [], []
+    try:
+        with open(os.path.expanduser(cfg["audit_log"])) as fh:
+            for line in fh:
+                try:
+                    e = json.loads(line)
+                    ts = datetime.fromisoformat(e["ts"]).timestamp()
+                except (ValueError, KeyError):
+                    continue
+                if e.get("cmd") == "run":
+                    runs.append((ts, e))
+                elif e.get("cmd") == "move" and ts >= since:
+                    moves.append(e)
+    except OSError:
+        pass
+    problems, lanes = [], {}
+    for ts, e in runs:
+        lanes[e.get("lane", "new")] = (ts, e)
+    if not runs:
+        problems.append("no runs recorded yet")
+    for lane, (ts, e) in sorted(lanes.items()):
+        if not e.get("ok"):
+            problems.append(f"last {lane} run failed: {e.get('error', '?')}")
+    last_new = lanes.get("new")
+    if last_new and (now.timestamp() - last_new[0]) / 60 > max_gap_min:
+        problems.append(f"no new-mail run for {(now.timestamp() - last_new[0]) / 60:.0f} min (expected every 10)")
+    recent = [e for ts, e in runs if ts >= since]
+    fails = [e for e in recent if not e.get("ok")]
+    unclassified = sum(e.get("unclassified", 0) for e in recent if e.get("ok"))
+    if recent and unclassified > 0.5 * max(1, sum(e.get("scanned", 0) for e in recent if e.get("ok"))):
+        problems.append(f"{unclassified} emails unclassified in {hours:g}h — classifier mostly unavailable")
+    by_rule: dict[str, int] = {}
+    by_folder: dict[str, int] = {}
+    for m in moves:
+        by_rule[m.get("rule", "?")] = by_rule.get(m.get("rule", "?"), 0) + 1
+        by_folder[m.get("to", "?")] = by_folder.get(m.get("to", "?"), 0) + 1
+    return {
+        "healthy": not problems, "problems": problems, "window_h": hours,
+        "last_run": {lane: {"at": datetime.fromtimestamp(ts, timezone.utc).isoformat(timespec="seconds"),
+                            "ok": e.get("ok"), "scanned": e.get("scanned"), "moved": e.get("moved")}
+                     for lane, (ts, e) in sorted(lanes.items())},
+        "runs": len(recent), "failed_runs": len(fails), "moved": len(moves), "by_rule": by_rule,
+        "by_folder": by_folder, "unclassified": unclassified,
+        "recent_errors": [e.get("error") for e in fails[-3:]],
+        "sweep_bookmark": read_state(cfg).get("sweep_after"),
+    }
 
 
 def apply(cfg: dict, mbx, planned: dict) -> dict:
@@ -128,8 +238,8 @@ def explain(cfg: dict, mbx, msg_id: str, pass_name: str = "all", classifier=None
     sent = facts_mod.SentIndex(mbx.sent_history(cfg["limits"]["sent_lookback"]))
     f = facts_mod.compute(m, cfg, sent, now)
     classifier = classifier or clf.Classifier(cfg, clf.Cache(cfg["classifier"]["cache_path"]))
-    text = clf.email_text(m)
-    d = rules_mod.evaluate(cfg["rules"], f, pass_name, lambda: classifier(m["id"], text))
+    text = clf.email_text(m, sender_kind=f.sender_kind)
+    d = rules_mod.evaluate(cfg["rules"], f, pass_name, lambda: classifier(m["id"], text), cfg.get("stale"))
     return {**_row(m), "facts": {"sender": f.sender_kind, "age_h": round(f.age_h, 1), "read": f.read,
                                  "replied": f.replied, "content": f.content},
             "decision": {"action": d.action, "rule": d.rule, "to": d.to, "why": d.why},
@@ -149,7 +259,7 @@ def evaluate_labels(cfg: dict, path: str, classifier=None) -> dict:
                  "subject": ex.get("subject", ""), "bodyPreview": ex.get("body", "")}
             total += 1
             try:
-                got = classifier(f"label-{i}", clf.email_text(m))["category"]
+                got = classifier(f"label-{i}", clf.email_text(m, sender_kind=ex.get("sender")))["category"]
             except clf.Unavailable as e:
                 errors += 1
                 misses.append({"line": i + 1, "expect": ex["expect"], "got": None, "error": str(e)[:120]})

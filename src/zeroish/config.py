@@ -53,8 +53,9 @@ def normalise(raw: dict) -> dict:
         "owner": {"mailbox": owner["mailbox"].lower(), "description": owner["description"]},
         "auth": {"tenant": raw["auth"]["tenant"], "client_id": raw["auth"]["client_id"],
                  "token_path": raw["auth"].get("token_path", "~/.config/zeroish/token.json")},
-        "senders": {k: {s.strip().lower() for s in (raw.get("senders") or {}).get(k, []) if s.strip()}
-                    for k in ("priority", "internal")},
+        "senders": {**{k: {s.strip().lower() for s in (raw.get("senders") or {}).get(k, []) if s.strip()}
+                       for k in ("priority", "internal", "known")},
+                    "known_file": (raw.get("senders") or {}).get("known_file")},
         "categories": cats,
         "classifier": {"backends": clf.get("backends", []), "notes": clf.get("notes", []),
                        "min_confidence": float(clf.get("min_confidence", 0.85)),
@@ -66,11 +67,25 @@ def normalise(raw: dict) -> dict:
         "audit_log": raw.get("audit_log", "~/.local/state/zeroish/audit.jsonl"),
         "sensitive": Sensitive(raw.get("sensitive") or {}),
     }
+    cfg["senders"]["known"] |= read_known_file(cfg["senders"]["known_file"])
     try:
         cfg["rules"] = rules_mod.parse(raw["rules"], set(cats), cfg["classifier"]["min_confidence"])
+        cfg["stale"] = rules_mod.parse_stale(raw.get("stale"))
     except rules_mod.RuleError as e:
         raise ConfigError(str(e)) from None
     return cfg
+
+
+def read_known_file(path: str | None) -> set[str]:
+    """Known senders written by your own sync job (CRM customers, open deals): one domain or address per line,
+    '#' comments allowed. Missing file = empty list, so a failed sync never blocks triage."""
+    if not path:
+        return set()
+    try:
+        with open(os.path.expanduser(path)) as fh:
+            return {ln.split("#", 1)[0].strip().lower() for ln in fh if ln.split("#", 1)[0].strip()}
+    except OSError:
+        return set()
 
 
 class Sensitive:

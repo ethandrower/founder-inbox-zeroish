@@ -47,6 +47,16 @@ def age_hours(received: str | None, now: datetime) -> float:
     return max(0.0, (now - t).total_seconds() / 3600)
 
 
+def colleague_on_thread(m: dict, cfg: dict) -> bool:
+    """Someone from an internal domain (other than the owner) is on To/Cc: a team conversation, never cold."""
+    owner = cfg["owner"]["mailbox"]
+    for r in (m.get("toRecipients") or []) + (m.get("ccRecipients") or []):
+        a = (((r or {}).get("emailAddress") or {}).get("address") or "").lower()
+        if a and a != owner and _matches(a, cfg["senders"]["internal"]):
+            return True
+    return False
+
+
 def compute(m: dict, cfg: dict, sent: SentIndex, now: datetime | None = None) -> Facts:
     now = now or datetime.now(timezone.utc)
     sender = (((m.get("from") or {}).get("emailAddress") or {}).get("address") or "").lower()
@@ -55,8 +65,12 @@ def compute(m: dict, cfg: dict, sent: SentIndex, now: datetime | None = None) ->
         kind = "priority"
     elif _matches(sender, senders["internal"]):
         kind = "internal"
+    elif _matches(sender, senders["known"]):
+        kind = "known"                    # customers/deals from your CRM, via senders.known_file
     elif sender_key(sender) in sent.correspondents:
         kind = "correspondent"
+    elif colleague_on_thread(m, cfg):
+        kind = "team_thread"
     else:
         kind = "unknown"
     last = sent.last_sent.get(m.get("conversationId"))
