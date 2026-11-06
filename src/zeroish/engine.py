@@ -37,7 +37,7 @@ def plan(cfg: dict, mbx, pass_name: str, since_iso: str | None, limit: int, clas
     bookmark = read_state(cfg).get("sweep_after") if sweep else None
     msgs = mbx.inbox_oldest(bookmark, limit) if sweep else mbx.inbox(since_iso, limit)
     sent = facts_mod.SentIndex(mbx.sent_history(cfg["limits"]["sent_lookback"]))
-    classifier = classifier or clf.Classifier(cfg, clf.Cache(cfg["classifier"]["cache_path"]))
+    classifier = classifier or clf.Classifier(cfg, clf.Cache(cfg["classifier"]["cache_path"], version=clf.prompt_version(cfg)))
 
     def one(m):
         if cfg["sensitive"].reason(m, "Inbox"):
@@ -237,7 +237,7 @@ def explain(cfg: dict, mbx, msg_id: str, pass_name: str = "all", classifier=None
         return {"id": msg_id, "withheld_sensitive": reason}
     sent = facts_mod.SentIndex(mbx.sent_history(cfg["limits"]["sent_lookback"]))
     f = facts_mod.compute(m, cfg, sent, now)
-    classifier = classifier or clf.Classifier(cfg, clf.Cache(cfg["classifier"]["cache_path"]))
+    classifier = classifier or clf.Classifier(cfg, clf.Cache(cfg["classifier"]["cache_path"], version=clf.prompt_version(cfg)))
     text = clf.email_text(m, sender_kind=f.sender_kind)
     d = rules_mod.evaluate(cfg["rules"], f, pass_name, lambda: classifier(m["id"], text), cfg.get("stale"))
     return {**_row(m), "facts": {"sender": f.sender_kind, "age_h": round(f.age_h, 1), "read": f.read,

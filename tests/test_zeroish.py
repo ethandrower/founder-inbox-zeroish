@@ -321,6 +321,19 @@ class Classifier(unittest.TestCase):
             out = c("m1", "text")
         self.assertEqual((out["category"], out["backend"]), ("digest", "second"))
 
+    def test_changing_the_prompt_invalidates_cached_answers(self):
+        path = os.path.join(tempfile.mkdtemp(), "c.json")
+        v1 = classify.prompt_version(CFG)
+        c = classify.Cache(path, version=v1)
+        c.put("m1", {"category": "vendor_pitch", "confidence": 0.9, "reason": ""})
+        c.save()
+        raw = json.loads(json.dumps(RAW))
+        raw["categories"]["notification"]["not"] = "Upwork message alerts are notification."
+        v2 = classify.prompt_version(config.normalise(raw))
+        self.assertNotEqual(v1, v2)
+        self.assertIsNotNone(classify.Cache(path, version=v1).get("m1"))
+        self.assertIsNone(classify.Cache(path, version=v2).get("m1"))
+
     def test_cache(self):
         path = os.path.join(tempfile.mkdtemp(), "c.json")
         cache = classify.Cache(path)

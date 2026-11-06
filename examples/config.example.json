@@ -42,7 +42,8 @@
       "not": "A signature request or 'action required' email is action_needed even when automated."
     },
     "notification": {
-      "means": "transactional or system mail: alerts, receipts, calendar, meeting reminders, tool activity, security notices"
+      "means": "transactional or system mail: alerts, receipts, calendar, meeting reminders, tool activity, security notices",
+      "not": "Message alerts relayed by platforms (Upwork, LinkedIn, marketplaces: 'X sent you a message', 'you have an unread message'), internal-tool posts, and Microsoft quarantine or junk-mail reports are notification, never vendor_pitch or action_needed."
     },
     "digest": {
       "means": "an automated periodic summary of activity you are part of: daily/weekly digests, recaps, scheduled reports"

@@ -163,10 +163,11 @@ class Classifier:
 
 
 class Cache:
-    """message id -> classification, so each email is sent to an LLM once. 30-day prune on save."""
+    """message id -> classification, so each email is sent to an LLM once per prompt version. Answers are tagged
+    with a fingerprint of the prompt; editing categories or tie-breakers re-asks the model. 30-day prune on save."""
 
-    def __init__(self, path: str, keep_days: int = 30):
-        self.path, self.keep_days = os.path.expanduser(path), keep_days
+    def __init__(self, path: str, keep_days: int = 30, version: str = ""):
+        self.path, self.keep_days, self.version = os.path.expanduser(path), keep_days, version
         try:
             with open(self.path) as fh:
                 self.data = json.load(fh)
@@ -175,11 +176,18 @@ class Cache:
 
     def get(self, key: str) -> dict | None:
         hit = self.data.get(key)
-        return dict(hit["c"], backend="cache") if hit else None
+        if not hit or hit.get("v", "") != self.version:
+            return None
+        return dict(hit["c"], backend="cache")
 
     def put(self, key: str, c: dict):
-        self.data[key] = {"c": {k: c[k] for k in ("category", "confidence", "reason")},
+        self.data[key] = {"c": {k: c[k] for k in ("category", "confidence", "reason")}, "v": self.version,
                           "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+
+
+def prompt_version(cfg: dict) -> str:
+    import hashlib
+    return hashlib.sha256(build_prompt(cfg).encode()).hexdigest()[:12]
 
     def save(self):
         cutoff = datetime.now(timezone.utc).timestamp() - self.keep_days * 86400
