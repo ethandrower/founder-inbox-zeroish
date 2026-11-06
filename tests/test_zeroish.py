@@ -515,6 +515,12 @@ class Operations(unittest.TestCase):
                 self.assertTrue(first)
                 self.assertFalse(second)
 
+    def test_bulk_lock_does_not_block_triage(self):
+        with engine.RunLock(self.cfg, "bulk") as bulk:
+            with engine.RunLock(self.cfg) as triage_run:
+                self.assertTrue(bulk)
+                self.assertTrue(triage_run)
+
     def test_status_reports_health(self):
         self.assertFalse(engine.status(self.cfg, now=NOW)["healthy"])  # nothing ran yet
         with mock.patch.object(engine, "datetime") as dt:

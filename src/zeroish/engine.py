@@ -110,8 +110,8 @@ def write_state(cfg: dict, state: dict):
 class RunLock:
     """One run at a time per mailbox. A slow run (busy LLM) is never overlapped by the next cron tick."""
 
-    def __init__(self, cfg: dict):
-        self.path = _state_path(cfg, "run.lock")
+    def __init__(self, cfg: dict, name: str = "run"):
+        self.path = _state_path(cfg, f"{name}.lock")
         self.fh = None
 
     def __enter__(self):

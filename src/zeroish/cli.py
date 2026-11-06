@@ -87,9 +87,10 @@ def cmd_archive_older(cfg, a):
     if mbx.user != cfg["owner"]["mailbox"]:
         raise PermissionError(f"signed in as {mbx.user}, config is for {cfg['owner']['mailbox']}")
     cutoff = (datetime.now(timezone.utc) - timedelta(days=a.days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    with engine.RunLock(cfg) as got:
+    # Its own lock: a long bulk archive must never starve the scheduled triage (it only touches old mail).
+    with engine.RunLock(cfg, "bulk") as got:
         if not got:
-            return {"skipped": "a run is in progress; try again in a minute"}
+            return {"skipped": "another bulk archive is in progress"}
         return engine.archive_older(cfg, mbx, cutoff, a.to, a.limit, a.apply)
 
 
