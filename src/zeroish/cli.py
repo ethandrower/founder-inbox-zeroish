@@ -68,6 +68,18 @@ def cmd_run(cfg, a):
     return planned
 
 
+def cmd_move(cfg, a):
+    """Move specific emails by id (e.g. a reviewed subset of a plan), through the same guardrails as --apply."""
+    mbx = _mailbox(cfg)
+    if mbx.user != cfg["owner"]["mailbox"]:
+        raise PermissionError(f"signed in as {mbx.user}, config is for {cfg['owner']['mailbox']}")
+    planned = {"to_move": [{"id": i, "to": a.to, "rule": "manual"} for i in dict.fromkeys(a.id)]}
+    with engine.RunLock(cfg) as got:
+        if not got:
+            return {"skipped": "a run is in progress; try again in a minute"}
+        return engine.apply(cfg, mbx, planned)
+
+
 def cmd_status(cfg, a):
     out = engine.status(cfg, a.hours, a.max_gap_min)
     a._exit = 0 if out["healthy"] else 3
@@ -112,6 +124,10 @@ def build_parser():
     ru.add_argument("--sweep", action="store_true",
                     help="backlog lane: oldest first from a saved bookmark, --limit per run")
     ru.set_defaults(fn=cmd_run)
+    mv = sub.add_parser("move", help="move specific inbox emails by id (same guardrails as --apply)")
+    mv.add_argument("--id", action="append", required=True)
+    mv.add_argument("--to", required=True, help="folder path")
+    mv.set_defaults(fn=cmd_move)
     st = sub.add_parser("status", help="health from the audit log; exit 3 when unhealthy")
     st.add_argument("--hours", type=float, default=24)
     st.add_argument("--max-gap-min", type=float, default=25, help="alert if no new-mail run for this long")
