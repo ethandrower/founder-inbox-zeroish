@@ -214,13 +214,18 @@ class Mailbox:
                                 "$filter": f"receivedDateTime ge {since_iso}", "$orderby": "receivedDateTime desc"},
                         headers={"Prefer": 'outlook.body-content-type="text"'}).get("value", [])
 
-    def inbox_oldest(self, after_iso: str | None, limit: int) -> list[dict]:
-        """Oldest-first page of the inbox, strictly after `after_iso` (the backlog sweep's bookmark)."""
-        params = {"$top": str(limit), "$select": self.INBOX_FIELDS + ",body", "$orderby": "receivedDateTime asc"}
-        if after_iso:
-            params["$filter"] = f"receivedDateTime gt {after_iso}"
+    def inbox_page(self, bookmark: str | None, limit: int, newest_first: bool) -> list[dict]:
+        """One page of the backlog sweep. newest_first walks back from today (strictly older than the bookmark);
+        otherwise forward from the oldest (strictly newer than the bookmark)."""
+        params = {"$top": str(limit), "$select": self.INBOX_FIELDS + ",body",
+                  "$orderby": f"receivedDateTime {'desc' if newest_first else 'asc'}"}
+        if bookmark:
+            params["$filter"] = f"receivedDateTime {'lt' if newest_first else 'gt'} {bookmark}"
         return self.get("/me/mailFolders/inbox/messages", params=params,
                         headers={"Prefer": 'outlook.body-content-type="text"'}).get("value", [])
+
+    def inbox_count(self) -> int:
+        return int(self.get("/me/mailFolders/inbox", params={"$select": "totalItemCount"}).get("totalItemCount", 0))
 
     def message(self, msg_id: str) -> dict:
         return self.get(f"/me/messages/{msg_id}", params={"$select": self.INBOX_FIELDS + ",body"},

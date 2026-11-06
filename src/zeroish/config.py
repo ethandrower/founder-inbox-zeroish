@@ -64,7 +64,8 @@ def normalise(raw: dict) -> dict:
                        "cache_path": clf.get("cache_path", "~/.cache/zeroish/classifications.json")},
         "limits": {"max_moves_per_run": int((raw.get("limits") or {}).get("max_moves_per_run", 50)),
                    "sent_lookback": int((raw.get("limits") or {}).get("sent_lookback", 1000)),
-                   "scan_limit": int((raw.get("limits") or {}).get("scan_limit", 50))},
+                   "scan_limit": int((raw.get("limits") or {}).get("scan_limit", 50)),
+                   "sweep_order": (raw.get("limits") or {}).get("sweep_order", "newest_first")},
         "audit_log": raw.get("audit_log", "~/.local/state/zeroish/audit.jsonl"),
         "sensitive": Sensitive(raw.get("sensitive") or {}),
     }

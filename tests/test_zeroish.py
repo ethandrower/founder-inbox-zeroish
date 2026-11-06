@@ -359,10 +359,13 @@ class FakeMailbox:
     def inbox(self, since, limit):
         return list(self._inbox.values())[:limit]
 
-    def inbox_oldest(self, after, limit):
+    def inbox_page(self, bookmark, limit, newest_first):
         msgs = sorted((m for m in self._inbox.values() if m["parentFolderId"] == "inbox"),
-                      key=lambda m: m["receivedDateTime"])
-        return [m for m in msgs if not after or m["receivedDateTime"] > after][:limit]
+                      key=lambda m: m["receivedDateTime"], reverse=newest_first)
+        if bookmark:
+            msgs = [m for m in msgs if (m["receivedDateTime"] < bookmark if newest_first
+                                        else m["receivedDateTime"] > bookmark)]
+        return msgs[:limit]
 
     def sent_history(self, n):
         return self._sent
@@ -463,14 +466,19 @@ class Operations(unittest.TestCase):
                                 for i in range(5)])
         self.clf = lambda mid, text: {"category": "prospect", "confidence": 0.9, "reason": "r"}
 
-    def test_sweep_walks_the_backlog_and_wraps(self):
+    def test_sweep_walks_back_from_today_and_wraps(self):
         seen = []
         for _ in range(3):
             p = engine.plan(self.cfg, self.box, "cleanup", None, 2, self.clf, NOW, sweep=True)
             seen.append([r["id"] for r in p["to_move"] + p["kept"]])
             engine.commit_sweep(self.cfg, p)
-        self.assertEqual(seen, [["m0", "m1"], ["m2", "m3"], ["m4"]])
-        self.assertIsNone(engine.read_state(self.cfg).get("sweep_after"))  # short page: back to the start
+        self.assertEqual(seen, [["m4", "m3"], ["m2", "m1"], ["m0"]])  # newest first, then older
+        self.assertIsNone(engine.read_state(self.cfg).get("sweep_bookmark"))  # short page: back to today
+
+    def test_sweep_can_go_oldest_first(self):
+        cfg = {**self.cfg, "limits": {**self.cfg["limits"], "sweep_order": "oldest_first"}}
+        p = engine.plan(cfg, self.box, "cleanup", None, 2, self.clf, NOW, sweep=True)
+        self.assertEqual([r["id"] for r in p["to_move"] + p["kept"]], ["m0", "m1"])
 
     def test_stale_backlog_is_archived_by_the_sweep(self):
         p = engine.plan(self.cfg, self.box, "cleanup", None, 5, self.clf, NOW, sweep=True)

@@ -34,8 +34,9 @@ def plan(cfg: dict, mbx, pass_name: str, since_iso: str | None, limit: int, clas
     """Decide inbox email. Default: newest first since `since_iso`. sweep=True: oldest first from the saved
     bookmark, so a small batch per run works through the whole backlog over time. Moves nothing."""
     now = now or datetime.now(timezone.utc)
-    bookmark = read_state(cfg).get("sweep_after") if sweep else None
-    msgs = mbx.inbox_oldest(bookmark, limit) if sweep else mbx.inbox(since_iso, limit)
+    newest_first = cfg["limits"].get("sweep_order", "newest_first") == "newest_first"
+    bookmark = read_state(cfg).get("sweep_bookmark") if sweep else None
+    msgs = mbx.inbox_page(bookmark, limit, newest_first) if sweep else mbx.inbox(since_iso, limit)
     sent = facts_mod.SentIndex(mbx.sent_history(cfg["limits"]["sent_lookback"]))
     classifier = classifier or clf.Classifier(cfg, clf.Cache(cfg["classifier"]["cache_path"], version=clf.prompt_version(cfg)))
 
@@ -71,7 +72,7 @@ def plan(cfg: dict, mbx, pass_name: str, since_iso: str | None, limit: int, clas
         out["warning"] = f"{unclassified} email(s) not classified (no LLM answered); they stay in the inbox"
     out["unclassified"] = unclassified
     if sweep:
-        # Short page = reached the present: start again from the oldest next time (age rules keep ripening).
+        # Short page = reached the end of the backlog: start again next time (age rules keep ripening).
         out["sweep_from"] = bookmark
         out["sweep_next"] = msgs[-1]["receivedDateTime"] if len(msgs) >= limit else None
     return out
@@ -81,7 +82,7 @@ def commit_sweep(cfg: dict, planned: dict):
     """Advance the sweep bookmark. Call only after the batch was applied (or deliberately skipped)."""
     if planned.get("lane") == "sweep":
         state = read_state(cfg)
-        state["sweep_after"] = planned.get("sweep_next")
+        state["sweep_bookmark"] = planned.get("sweep_next")
         write_state(cfg, state)
 
 
@@ -177,7 +178,7 @@ def status(cfg: dict, hours: float = 24, max_gap_min: float = 25, now: datetime 
         "runs": len(recent), "failed_runs": len(fails), "moved": len(moves), "by_rule": by_rule,
         "by_folder": by_folder, "unclassified": unclassified,
         "recent_errors": [e.get("error") for e in fails[-3:]],
-        "sweep_bookmark": read_state(cfg).get("sweep_after"),
+        "sweep_bookmark": read_state(cfg).get("sweep_bookmark"),
     }
 
 
