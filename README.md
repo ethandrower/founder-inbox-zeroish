@@ -83,6 +83,21 @@ Anything unmatched goes to `stale.then` (e.g. Archive). This applies in the clea
 - If no classifier answers, nothing that needs content moves.
 - Audit log: one JSON line per plan and per move, with rule ids, never subject lines or bodies.
 
+## Where this is going
+
+Inbox triage is the first job of a founder's **chief of staff**: deciding what deserves your attention and keeping
+the rest out of the way. The same pieces carry over to the next jobs: facts about people and threads, one content
+classifier, declarative rules, guardrails, and an audit trail.
+
+- **Now:** inbox zero(ish). Cold outreach and promotions out within minutes; notifications, digests and handled
+  threads filed; a backlog sweep; nothing older than 30 days left in the inbox.
+- **Next:** a daily brief covering what needs you today (action-needed mail, priority senders, unanswered
+  customer threads), and follow-up nudges when a thread you care about goes quiet.
+- **Later:** calendar triage (accept, decline or propose based on rules about who and what), meeting prep from
+  the thread history, and Google Workspace alongside Microsoft 365.
+
+Each step keeps the same principle: an LLM judges content, and you write the rules in plain, checkable terms.
+
 ## Develop
 
 ```bash
