@@ -2,6 +2,7 @@
 ABOUTME: The token can only reach mailboxes its owner can open. Also the folder index and protected folders."""
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import sys
@@ -137,7 +138,13 @@ class Mailbox:
             try:
                 with urllib.request.urlopen(req, timeout=60) as r:
                     payload = r.read()
-                    return json.loads(payload) if payload else {}
+                return json.loads(payload) if payload else {}
+            except (json.JSONDecodeError, http.client.IncompleteRead, ConnectionError, TimeoutError) as e:
+                # A cut-off or dropped reply (seen on large $batch responses): transient, try again.
+                if attempt < 2:
+                    time.sleep(5)
+                    continue
+                raise GraphError(f"Graph reply unreadable on {method} {path}: {e}"[:300]) from None
             except urllib.error.HTTPError as e:
                 if e.code in (429, 503, 504) and attempt < 2:
                     time.sleep(min(int(e.headers.get("Retry-After") or 5), 30))
