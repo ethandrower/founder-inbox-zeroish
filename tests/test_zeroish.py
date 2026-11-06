@@ -244,6 +244,16 @@ class NewCustomers(unittest.TestCase):
         d = rules.evaluate(CFG["rules"], f, "fast", fake("vendor_pitch"))
         self.assertEqual(d.action, "keep")
 
+    def test_owner_aliases_are_not_colleagues(self):
+        raw = json.loads(json.dumps(RAW))
+        raw["owner"]["aliases"] = ["sam@yourcompany.com", "sam.rivera@yourcompany.com"]
+        cfg = config.normalise(raw)
+        m = msg("m", "rep@leadgen.example", "Quick question")
+        m["toRecipients"] = [{"emailAddress": {"address": "Sam.Rivera@yourcompany.com"}}]
+        self.assertEqual(facts.compute(m, cfg, facts.SentIndex([]), NOW).sender_kind, "unknown")
+        self.assertEqual(rules.evaluate(cfg["rules"], facts.compute(m, cfg, facts.SentIndex([]), NOW), "fast",
+                                        fake("vendor_pitch")).to, "Cold Outreach")
+
     def test_owner_alone_on_to_line_is_not_a_team_thread(self):
         m = msg("m", "rep@leadgen.example")
         m["toRecipients"] = [{"emailAddress": {"address": "you@yourcompany.com"}}]

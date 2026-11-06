@@ -49,10 +49,10 @@ def age_hours(received: str | None, now: datetime) -> float:
 
 def colleague_on_thread(m: dict, cfg: dict) -> bool:
     """Someone from an internal domain (other than the owner) is on To/Cc: a team conversation, never cold."""
-    owner = cfg["owner"]["mailbox"]
+    owner = cfg["owner"]["addresses"]  # the mailbox plus aliases: mail to your other addresses isn't a "colleague"
     for r in (m.get("toRecipients") or []) + (m.get("ccRecipients") or []):
         a = (((r or {}).get("emailAddress") or {}).get("address") or "").lower()
-        if a and a != owner and _matches(a, cfg["senders"]["internal"]):
+        if a and a not in owner and _matches(a, cfg["senders"]["internal"]):
             return True
     return False
 

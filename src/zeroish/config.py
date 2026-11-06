@@ -50,7 +50,8 @@ def normalise(raw: dict) -> dict:
             raise ConfigError(f"category {name!r} needs a 'means' line")
     clf = raw.get("classifier") or {}
     cfg = {
-        "owner": {"mailbox": owner["mailbox"].lower(), "description": owner["description"]},
+        "owner": {"mailbox": owner["mailbox"].lower(), "description": owner["description"],
+                  "addresses": {owner["mailbox"].lower()} | {a.strip().lower() for a in owner.get("aliases", [])}},
         "auth": {"tenant": raw["auth"]["tenant"], "client_id": raw["auth"]["client_id"],
                  "token_path": raw["auth"].get("token_path", "~/.config/zeroish/token.json")},
         "senders": {**{k: {s.strip().lower() for s in (raw.get("senders") or {}).get(k, []) if s.strip()}
