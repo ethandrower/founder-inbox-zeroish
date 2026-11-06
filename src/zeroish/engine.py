@@ -216,6 +216,37 @@ def apply(cfg: dict, mbx, planned: dict) -> dict:
             "refused": refused, "skipped_over_cap": skipped}
 
 
+def archive_older(cfg: dict, mbx, cutoff_iso: str, to: str, limit: int, apply: bool) -> dict:
+    """Bulk-move inbox mail older than the cutoff to one folder, without classifying it (old mail isn't worth the
+    inference). Same destination guardrails as apply(). Moves at most `limit` per call; call again to continue."""
+    fid = mbx.resolve(to)
+    index = mbx.folders()
+    if mbx.is_protected(fid, mbx.protected_ids()):
+        raise PermissionError(f"{to!r} is a protected folder")
+    cur, seen = fid, set()
+    while cur and cur in index and cur not in seen:
+        if cfg["sensitive"].folder_blocked(index[cur]["name"]):
+            raise PermissionError(f"{to!r} is a sensitive folder")
+        seen.add(cur)
+        cur = index[cur]["parent"]
+    remaining = mbx.count_before(cutoff_iso)
+    if not apply:
+        return {"cutoff": cutoff_iso, "to": to, "would_move": remaining,
+                "next": "re-run with --apply to move them (in chunks of --limit)"}
+    ids = mbx.ids_before(cutoff_iso, limit)
+    moved, failed = [], {}
+    for i in range(0, len(ids), 20):
+        ok, bad = mbx.batch_move(ids[i:i + 20], fid)
+        moved += ok
+        failed.update(bad)
+        for mid in ok:
+            audit(cfg, {"cmd": "move", "id": mid, "to": to, "rule": "archive-older"})
+    audit(cfg, {"cmd": "archive-older", "cutoff": cutoff_iso, "to": to, "moved": len(moved), "failed": len(failed)})
+    return {"cutoff": cutoff_iso, "to": to, "moved": len(moved), "failed": len(failed),
+            "failed_sample": dict(list(failed.items())[:5]), "remaining_before": remaining,
+            "remaining_after": max(0, remaining - len(moved))}
+
+
 def index_id_for_inbox(mbx) -> str:
     if not hasattr(mbx, "_inbox_id"):
         mbx._inbox_id = mbx.get("/me/mailFolders/inbox", params={"$select": "id"})["id"]

@@ -385,6 +385,18 @@ class FakeMailbox:
     def resolve(self, name):
         return next(fid for fid, f in self._folders.items() if f["path"] == name)
 
+    def count_before(self, cutoff):
+        return len(self.ids_before(cutoff, 10**6))
+
+    def ids_before(self, cutoff, n):
+        return [m["id"] for m in sorted(self._inbox.values(), key=lambda m: m["receivedDateTime"])
+                if m["parentFolderId"] == "inbox" and m["receivedDateTime"] < cutoff][:n]
+
+    def batch_move(self, ids, fid):
+        for mid in ids:
+            self.move(mid, fid)
+        return list(ids), {}
+
     def move(self, mid, fid):
         self.moves.append((mid, self._folders[fid]["path"]))
         self._inbox[mid]["parentFolderId"] = fid
@@ -483,6 +495,19 @@ class Operations(unittest.TestCase):
     def test_stale_backlog_is_archived_by_the_sweep(self):
         p = engine.plan(self.cfg, self.box, "cleanup", None, 5, self.clf, NOW, sweep=True)
         self.assertEqual({r["to"] for r in p["to_move"]}, {"Archive"})  # 36–40 days old prospects: stale
+
+    def test_archive_older_is_dry_by_default_then_chunks(self):
+        cutoff = (NOW - timedelta(days=37)).strftime("%Y-%m-%dT%H:%M:%SZ")  # m0..m2 are older
+        dry = engine.archive_older(self.cfg, self.box, cutoff, "Archive", 2, apply=False)
+        self.assertEqual((dry["would_move"], self.box.moves), (3, []))
+        first = engine.archive_older(self.cfg, self.box, cutoff, "Archive", 2, apply=True)
+        second = engine.archive_older(self.cfg, self.box, cutoff, "Archive", 2, apply=True)
+        self.assertEqual((first["moved"], second["moved"], second["remaining_after"]), (2, 1, 0))
+        self.assertEqual({to for _, to in self.box.moves}, {"Archive"})
+
+    def test_archive_older_refuses_protected_folder(self):
+        with self.assertRaises(PermissionError):
+            engine.archive_older(self.cfg, self.box, "2099-01-01T00:00:00Z", "Deleted Items", 10, apply=True)
 
     def test_lock_blocks_a_second_run(self):
         with engine.RunLock(self.cfg) as first:

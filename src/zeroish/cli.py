@@ -80,6 +80,19 @@ def cmd_move(cfg, a):
         return engine.apply(cfg, mbx, planned)
 
 
+def cmd_archive_older(cfg, a):
+    """Bulk-archive inbox mail older than N days without classifying it. Dry run unless --apply."""
+    from datetime import datetime, timedelta, timezone
+    mbx = _mailbox(cfg)
+    if mbx.user != cfg["owner"]["mailbox"]:
+        raise PermissionError(f"signed in as {mbx.user}, config is for {cfg['owner']['mailbox']}")
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=a.days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with engine.RunLock(cfg) as got:
+        if not got:
+            return {"skipped": "a run is in progress; try again in a minute"}
+        return engine.archive_older(cfg, mbx, cutoff, a.to, a.limit, a.apply)
+
+
 def cmd_status(cfg, a):
     out = engine.status(cfg, a.hours, a.max_gap_min)
     a._exit = 0 if out["healthy"] else 3
@@ -128,6 +141,12 @@ def build_parser():
     mv.add_argument("--id", action="append", required=True)
     mv.add_argument("--to", required=True, help="folder path")
     mv.set_defaults(fn=cmd_move)
+    ao = sub.add_parser("archive-older", help="bulk-move inbox mail older than N days, no LLM (dry run by default)")
+    ao.add_argument("--days", type=int, required=True)
+    ao.add_argument("--to", default="Archive")
+    ao.add_argument("--limit", type=int, default=1000, help="max moves per call (call again to continue)")
+    ao.add_argument("--apply", action="store_true")
+    ao.set_defaults(fn=cmd_archive_older)
     st = sub.add_parser("status", help="health from the audit log; exit 3 when unhealthy")
     st.add_argument("--hours", type=float, default=24)
     st.add_argument("--max-gap-min", type=float, default=25, help="alert if no new-mail run for this long")

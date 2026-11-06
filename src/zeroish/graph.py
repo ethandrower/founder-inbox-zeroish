@@ -241,5 +241,45 @@ class Mailbox:
             path, params = res.get("@odata.nextLink"), None
         return out[:lookback]
 
+    def ids_before(self, cutoff_iso: str, n: int) -> list[str]:
+        """Up to n inbox message ids received before the cutoff, oldest first."""
+        res = self.get("/me/mailFolders/inbox/messages",
+                       params={"$filter": f"receivedDateTime lt {cutoff_iso}", "$orderby": "receivedDateTime asc",
+                               "$top": str(min(n, 1000)), "$select": "id"})
+        return [m["id"] for m in res.get("value", [])][:n]
+
+    def count_before(self, cutoff_iso: str) -> int:
+        res = self.get("/me/mailFolders/inbox/messages",
+                       params={"$filter": f"receivedDateTime lt {cutoff_iso}", "$count": "true", "$top": "1",
+                               "$select": "id"}, headers={"ConsistencyLevel": "eventual"})
+        return int(res.get("@odata.count", 0))
+
+    def batch_move(self, ids: list[str], folder_id: str) -> tuple[list[str], dict[str, str]]:
+        """Move up to 20 messages in one Graph $batch call, retrying throttled items. Returns (moved, failed)."""
+        pending, moved, failed = list(ids), [], {}
+        for attempt in range(4):
+            if not pending:
+                break
+            reqs = [{"id": str(i), "method": "POST", "url": f"/me/messages/{mid}/move",
+                     "body": {"destinationId": folder_id}, "headers": {"Content-Type": "application/json"}}
+                    for i, mid in enumerate(pending)]
+            res = self.request("POST", "/$batch", body={"requests": reqs})
+            retry, wait = [], 0
+            for r in res.get("responses", []):
+                mid = pending[int(r["id"])]
+                if 200 <= r.get("status", 0) < 300:
+                    moved.append(mid)
+                elif r.get("status") in (429, 503, 504):
+                    retry.append(mid)
+                    wait = max(wait, int((r.get("headers") or {}).get("Retry-After", 5)))
+                else:
+                    failed[mid] = f"{r.get('status')}: {str(r.get('body'))[:120]}"
+            pending = retry
+            if pending:
+                time.sleep(min(wait or 5, 30))
+        for mid in pending:
+            failed[mid] = "throttled"
+        return moved, failed
+
     def move(self, msg_id: str, folder_id: str) -> str:
         return self.request("POST", f"/me/messages/{msg_id}/move", body={"destinationId": folder_id}).get("id")
