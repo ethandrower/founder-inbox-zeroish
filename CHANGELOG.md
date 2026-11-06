@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Licence changed from MIT to **FSL-1.1-MIT**: free to use, modify and self-host; no competing commercial product or service; each release becomes MIT two years after it ships. Copies obtained under MIT before this change keep their MIT terms.
+
+
 ## 0.2.0 (2026-11-06)
 
 - **New-customer protection:** two new sender kinds, `known` (from `senders.known_file`, written by your CRM sync) and `team_thread` (a colleague is on To/Cc). Both are trusted, so they are never cold.

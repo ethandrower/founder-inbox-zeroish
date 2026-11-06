@@ -103,4 +103,11 @@ Each step keeps the same principle: an LLM judges content, and you write the rul
 ```bash
 uv run python -m unittest discover -s tests
 ```
-Standard library only, Python 3.10+. MIT licensed.
+Standard library only, Python 3.10+.
+
+## Licence
+
+[FSL-1.1-MIT](LICENSE.md) (the Functional Source License). It's free to use, modify and self-host, including for
+your own company's inbox and for consulting work, but you can't offer it as a competing commercial product or
+service. Each release becomes plain **MIT** two years after it ships. This is
+[fair source](https://fair.io), not OSI open source.

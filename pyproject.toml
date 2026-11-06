@@ -3,7 +3,7 @@ name = "founder-inbox-zeroish"
 dynamic = ["version"]
 description = "Rules-based inbox triage for Microsoft 365: one LLM classifier, declarative rules, hard guardrails."
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "FSL-1.1-MIT" }
 requires-python = ">=3.10"
 dependencies = []
 
