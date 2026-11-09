@@ -71,6 +71,10 @@ def plan(cfg: dict, mbx, pass_name: str, since_iso: str | None, limit: int, clas
     if unclassified:
         out["warning"] = f"{unclassified} email(s) not classified (no LLM answered); they stay in the inbox"
     out["unclassified"] = unclassified
+    stale_h = getattr(cfg.get("stale"), "after_h", None)
+    if stale_h:
+        # Should never happen: the stale backstop moves everything past after_h. Counted for `status`.
+        out["overdue"] = sum(1 for r in out["kept"] if r["age_h"] > stale_h + 24)
     if sweep:
         # Short page = reached the end of the backlog: start again next time (age rules keep ripening).
         out["sweep_from"] = bookmark
@@ -83,6 +87,8 @@ def commit_sweep(cfg: dict, planned: dict):
     if planned.get("lane") == "sweep":
         state = read_state(cfg)
         state["sweep_bookmark"] = planned.get("sweep_next")
+        if planned.get("sweep_next") is None:  # reached the oldest inbox email: one full lap done
+            state["sweep_lap_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
         write_state(cfg, state)
 
 
@@ -130,7 +136,8 @@ class RunLock:
             self.fh.close()
 
 
-def status(cfg: dict, hours: float = 24, max_gap_min: float = 25, now: datetime | None = None) -> dict:
+def status(cfg: dict, hours: float = 24, max_gap_min: float = 25, now: datetime | None = None,
+           max_lap_h: float = 24) -> dict:
     """Health from the audit log: is it running, is it moving mail, is anything failing. For humans and cron."""
     now = now or datetime.now(timezone.utc)
     since = now.timestamp() - hours * 3600
@@ -160,6 +167,19 @@ def status(cfg: dict, hours: float = 24, max_gap_min: float = 25, now: datetime 
     last_new = lanes.get("new")
     if last_new and (now.timestamp() - last_new[0]) / 60 > max_gap_min:
         problems.append(f"no new-mail run for {(now.timestamp() - last_new[0]) / 60:.0f} min (expected every 10)")
+    last_sweep = lanes.get("sweep")
+    if last_sweep:
+        gap = (now.timestamp() - last_sweep[0]) / 60
+        if gap > max_gap_min:
+            problems.append(f"no backlog sweep run for {gap:.0f} min (expected every 10)")
+        if last_sweep[1].get("overdue"):
+            problems.append(f"{last_sweep[1]['overdue']} inbox email(s) past the stale limit were kept")
+        state = read_state(cfg)
+        lap = state.get("sweep_lap_at")
+        first = min(ts for ts, e in runs if e.get("lane") == "sweep")
+        lap_ts = datetime.fromisoformat(lap).timestamp() if lap else first
+        if (now.timestamp() - lap_ts) / 3600 > max_lap_h:
+            problems.append(f"backlog sweep hasn't finished a pass over the inbox in {max_lap_h:g}h")
     recent = [e for ts, e in runs if ts >= since]
     fails = [e for e in recent if not e.get("ok")]
     unclassified = sum(e.get("unclassified", 0) for e in recent if e.get("ok"))
@@ -179,6 +199,7 @@ def status(cfg: dict, hours: float = 24, max_gap_min: float = 25, now: datetime 
         "by_folder": by_folder, "unclassified": unclassified,
         "recent_errors": [e.get("error") for e in fails[-3:]],
         "sweep_bookmark": read_state(cfg).get("sweep_bookmark"),
+        "sweep_lap_at": read_state(cfg).get("sweep_lap_at"),
     }
 
 

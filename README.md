@@ -67,11 +67,25 @@ Anything unmatched goes to `stale.then` (e.g. Archive). This applies in the clea
 6. Schedule two lanes every 10 minutes, each with a small batch. Runs never overlap, thanks to a lock.
    ```cron
    */10 * * * *  zeroish run --pass fast --since 2h --limit 25 --apply             # new mail: pitches and promos out
-   5-59/10 * * * * zeroish run --pass cleanup --sweep --limit 20 --apply          # backlog, oldest first, bookmarked
+   5-59/10 * * * * zeroish run --sweep --limit 25 --apply                         # backlog, every rule, bookmarked
    ```
 7. Watch it: `zeroish status` reports last runs, moves per rule and folder, failures, and whether the classifier is
-   answering. It exits 3 when unhealthy (no recent run, a failed run, or most mail unclassified), so a heartbeat
-   check or chat bot can alert on it.
+   answering. It exits 3 when unhealthy (no recent run, a failed run, most mail unclassified, a backlog sweep that
+   stopped or hasn't finished a pass in 24 hours, or mail kept past the backstop), so a heartbeat check or chat bot
+   can alert on it.
+
+## Web page (optional)
+
+`zeroish ui` opens a local page for the same config file: reorder and edit rules, try any email against them
+before saving ("unknown sender, newsletter, 2 days old, unread: which rule fires?"), edit categories and the
+classifier prompt they build, senders, the backstop, classifier models, run health, and the Microsoft sign-in.
+
+- Saving runs the same checks as `zeroish lint` and refuses a config with an unreachable rule. It keeps the last 10
+  versions as `config.json.bak-*`, and refuses to overwrite the file if it changed on disk meanwhile.
+- The JSON file stays the source of truth. Editing it by hand works exactly as before; the page is never required.
+- It listens on 127.0.0.1 only, and every request needs the one-time key in the URL it prints.
+- Config on a server? `ssh -L 8765:127.0.0.1:8765 server zeroish ui --no-browser`, then open the printed URL
+  locally.
 
 ## Guardrails
 

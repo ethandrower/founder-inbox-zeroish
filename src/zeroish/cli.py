@@ -39,6 +39,10 @@ def cmd_run(cfg, a):
     if mbx.user != cfg["owner"]["mailbox"]:
         raise PermissionError(f"signed in as {mbx.user}, config is for {cfg['owner']['mailbox']}")
     lane = "sweep" if a.sweep else "new"
+    if a.sweep:
+        # The sweep is the guarantee that every inbox email eventually meets every rule, so it never
+        # runs a subset. (Running it as --pass cleanup once left ~270 pitches the new-mail lane missed.)
+        a.pass_name = "all"
     with engine.RunLock(cfg) as got:
         if not got:
             engine.audit(cfg, {"cmd": "skip", "lane": lane, "why": "previous run still going"})
@@ -58,6 +62,7 @@ def cmd_run(cfg, a):
                            "scanned": planned["scanned"], "to_move": len(planned["to_move"]),
                            "moved": (applied or {}).get("moved", 0), "refused": len((applied or {}).get("refused", [])),
                            "unclassified": planned["unclassified"], "withheld": planned["withheld_sensitive"],
+                           "overdue": planned.get("overdue", 0),
                            "duration_s": round(time.time() - started, 1)})
     if applied is not None:
         planned["applied"] = applied
@@ -136,7 +141,8 @@ def build_parser():
     ru.add_argument("--apply", action="store_true", help="move what the rules decide")
     ru.add_argument("--brief", action="store_true", help="shorter 'kept' list")
     ru.add_argument("--sweep", action="store_true",
-                    help="backlog lane: oldest first from a saved bookmark, --limit per run")
+                    help="backlog lane: walks the whole inbox from a saved bookmark, --limit per run, "
+                         "always with every rule")
     ru.set_defaults(fn=cmd_run)
     mv = sub.add_parser("move", help="move specific inbox emails by id (same guardrails as --apply)")
     mv.add_argument("--id", action="append", required=True)
@@ -160,11 +166,18 @@ def build_parser():
     ev.add_argument("--labels", required=True)
     ev.set_defaults(fn=cmd_eval)
     sub.add_parser("folders", help="mail folders and which can be move targets").set_defaults(fn=cmd_folders)
+    ui = sub.add_parser("ui", help="optional local web page: edit rules, try them, check health, sign in")
+    ui.add_argument("--port", type=int, default=8765)
+    ui.add_argument("--no-browser", action="store_true", help="just print the URL (e.g. over an SSH tunnel)")
     return p
 
 
 def main(argv=None):
     a = build_parser().parse_args(argv)
+    if a.cmd == "ui":  # starts even with a missing or broken config: fixing it is part of the job
+        from . import web
+        web.serve(config.config_path(a.config), a.port, not a.no_browser)
+        return 0
     try:
         cfg = config.load(a.config)
         out = a.fn(cfg, a)

@@ -1,0 +1,226 @@
+{
+  "owner": {
+    "mailbox": "you@yourcompany.com",
+    "description": "Sam Rivera, founder and CEO of Acme Health (software for medical device companies)"
+  },
+  "auth": {
+    "tenant": "YOUR-TENANT-ID",
+    "client_id": "YOUR-APP-CLIENT-ID",
+    "token_path": "~/.config/zeroish/token.json"
+  },
+  "senders": {
+    "priority": [
+      "mentor@example.org",
+      "partner@bigfund.vc",
+      "cofounder@yourcompany.com"
+    ],
+    "internal": [
+      "yourcompany.com",
+      "youritpartner.com"
+    ]
+  },
+  "categories": {
+    "client": {
+      "means": "an existing customer or their project: deliverables, invoices, reviews, support, contracts"
+    },
+    "prospect": {
+      "means": "a sales conversation you are pursuing: a lead, demo, proposal, RFP, or a prospect replying"
+    },
+    "internal": {
+      "means": "a colleague writing to you as a person about internal work",
+      "not": "Automated posts from internal tools (Confluence, Jira, scheduled job summaries, monitoring) are notification or digest, not internal. A colleague writing about a specific customer's project, deliverable or invoice is client, not internal."
+    },
+    "investor": {
+      "means": "a genuine VC firm, bank or established financial institution writing about your company",
+      "not": "Lenders, financing brokers and capital-raise helpers are capital_pitch, not investor."
+    },
+    "partner": {
+      "means": "an existing vendor, partner, advisor, lawyer or accountant you already work with"
+    },
+    "action_needed": {
+      "means": "asks you to do something specific: sign, approve, complete, confirm, pay, reply by a date",
+      "not": "A signature request or 'action required' email is action_needed even when automated."
+    },
+    "notification": {
+      "means": "transactional or system mail: alerts, receipts, calendar, meeting reminders, tool activity, security notices",
+      "not": "Message alerts relayed by platforms (Upwork, LinkedIn, marketplaces: 'X sent you a message', 'you have an unread message'), internal-tool posts, and Microsoft quarantine or junk-mail reports are notification, never vendor_pitch or action_needed."
+    },
+    "digest": {
+      "means": "an automated periodic summary of activity you are part of: daily/weekly digests, recaps, scheduled reports"
+    },
+    "newsletter": {
+      "means": "bulk marketing or editorial mail: newsletters, product announcements, promotions, webinar or event marketing"
+    },
+    "pr_marketing": {
+      "means": "your own PR and visibility: articles, podcast or interview invitations, speaking slots, conferences in your field",
+      "not": "Events in your field are pr_marketing even when they sell sponsorship or 'meetings with decision makers'; events outside it are vendor_pitch."
+    },
+    "vendor_pitch": {
+      "means": "a person's unsolicited cold sales outreach: agencies, lead-gen, dev shops, consultants, tools",
+      "not": "Cold outreach dressed up as a reply ('Re:', 'following up', 'circling back') with no real thread is still vendor_pitch, but a reply in a thread the owner has actually written in is never vendor_pitch."
+    },
+    "capital_pitch": {
+      "means": "unsolicited capital solicitation: lenders, revenue-based financing, cash advances, raise helpers, brokers"
+    },
+    "other": {
+      "means": "anything else, or not enough information to tell"
+    }
+  },
+  "classifier": {
+    "min_confidence": 0.85,
+    "timeout_s": 45,
+    "backends": [
+      {
+        "name": "local",
+        "type": "openai",
+        "url": "http://localhost:11434/v1",
+        "model": "gemma3:27b",
+        "key_env": "ZEROISH_LOCAL_KEY",
+        "disable_thinking": true
+      },
+      {
+        "name": "claude",
+        "type": "anthropic",
+        "model": "claude-haiku-5-5",
+        "key_env": "ANTHROPIC_API_KEY"
+      }
+    ]
+  },
+  "rules": [
+    {
+      "id": "priority",
+      "when": {
+        "sender": "priority"
+      },
+      "then": "keep"
+    },
+    {
+      "id": "handled",
+      "when": {
+        "replied": "after_latest"
+      },
+      "then": "Archive",
+      "pass": "cleanup"
+    },
+    {
+      "id": "action-needed",
+      "when": {
+        "category": "action_needed"
+      },
+      "then": "keep"
+    },
+    {
+      "id": "cold-outreach",
+      "when": {
+        "category": [
+          "vendor_pitch",
+          "capital_pitch"
+        ],
+        "trusted": false
+      },
+      "then": "Cold Outreach",
+      "pass": "fast"
+    },
+    {
+      "id": "promotions",
+      "when": {
+        "category": "newsletter",
+        "trusted": false
+      },
+      "then": "Newsletters",
+      "pass": "fast"
+    },
+    {
+      "id": "digests",
+      "when": {
+        "category": "digest",
+        "min_age_h": 24
+      },
+      "then": "Notifications",
+      "pass": "cleanup"
+    },
+    {
+      "id": "notifications",
+      "when": {
+        "category": "notification",
+        "min_age_h": 32
+      },
+      "then": "Notifications",
+      "pass": "cleanup"
+    },
+    {
+      "id": "customers",
+      "when": {
+        "category": "client",
+        "read": true,
+        "min_age_h": 24
+      },
+      "then": "Customer Projects",
+      "pass": "cleanup"
+    },
+    {
+      "id": "pr",
+      "when": {
+        "category": "pr_marketing",
+        "read": true,
+        "min_age_h": 24
+      },
+      "then": "PR & Marketing",
+      "pass": "cleanup"
+    }
+  ],
+  "sensitive": {
+    "terms": [
+      "salary",
+      "compensation",
+      "payroll",
+      "bonus",
+      "severance",
+      "offer letter",
+      "performance review",
+      "performance improvement plan",
+      "resignation",
+      "termination of employment",
+      "background check",
+      "w-2",
+      "1099",
+      "health insurance",
+      "medical leave",
+      "harassment",
+      "grievance",
+      "hiring",
+      "new hire"
+    ],
+    "sender_domains": [
+      "gusto.com",
+      "adp.com",
+      "rippling.com",
+      "justworks.com",
+      "deel.com"
+    ],
+    "sender_addresses": [
+      "hr@yourcompany.com",
+      "careers@yourcompany.com"
+    ],
+    "folders": [
+      "hr",
+      "human resources",
+      "payroll",
+      "recruiting",
+      "personnel"
+    ]
+  },
+  "limits": {
+    "max_moves_per_run": 50,
+    "sent_lookback": 1000,
+    "scan_limit": 50
+  },
+  "audit_log": "~/.local/state/zeroish/audit.jsonl",
+  "stale": {
+    "after_days": 30,
+    "then": "Archive",
+    "relax": [
+      "read"
+    ]
+  }
+}
