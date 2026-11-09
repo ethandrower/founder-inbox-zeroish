@@ -1,7 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-11-09)
 
+- **`zeroish ui`:** optional local web page to edit rules, categories, senders, backstop and models; a simulator that
+  shows which rule fires for any combination of facts; run health; Microsoft sign-in. Saves are checked like
+  `zeroish lint`, backed up, and refused on a concurrent edit. Local only, one-time key per launch.
+- **The backlog sweep always runs every rule.** Run as `--pass cleanup` it never applied the fast rules, so pitches the
+  new-mail lane missed stayed in the inbox.
+- **`zeroish status` catches a stuck or leaky sweep:** no sweep run recently, no full pass in 24 hours, or mail kept
+  past the backstop.
+- Cut-off or dropped Graph replies are retried instead of crashing a run.
+- `Auth.device_start` / `device_poll` split the device-code sign-in so other front ends can drive it.
 - Licence changed from MIT to **FSL-1.1-MIT**: free to use, modify and self-host; no competing commercial product or service; each release becomes MIT two years after it ships. Copies obtained under MIT before this change keep their MIT terms.
 
 

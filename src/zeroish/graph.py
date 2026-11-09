@@ -42,32 +42,47 @@ class Auth:
             except ValueError:
                 return {"error": f"http_{e.code}"}
 
-    def login(self, allowed_users: set[str], whoami) -> str:
-        """Interactive sign-in. Saves the token only if the signed-in user is allowed. Returns the user."""
+    def device_start(self) -> dict:
+        """Begin a device-code sign-in. Microsoft's reply: user_code, verification_uri, message, interval, ..."""
         dc = self._post("devicecode", {"scope": SCOPE})
         if "device_code" not in dc:
             raise GraphError(f"device code request failed: {dc.get('error_description') or dc.get('error')}")
+        return dc
+
+    def device_poll(self, dc: dict, allowed_users: set[str], whoami) -> str | None:
+        """One poll of a device-code sign-in. None = still waiting. Saves the token only for an allowed user."""
+        tok = self._post("token", {"grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                                   "device_code": dc["device_code"]})
+        err = tok.get("error")
+        if err in ("authorization_pending", "slow_down"):
+            return None
+        if err:
+            raise GraphError(f"sign-in failed: {tok.get('error_description') or err}")
+        user = whoami(tok["access_token"])
+        if user not in allowed_users:
+            raise GraphError(f"signed in as {user!r}, which is not in config.mailbox; nothing saved")
+        self.save({"user": user, "refresh_token": tok["refresh_token"],
+                   "saved": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+        return user
+
+    def login(self, allowed_users: set[str], whoami) -> str:
+        """Interactive sign-in from a terminal. Saves the token only if the signed-in user is allowed."""
+        dc = self.device_start()
         print(dc["message"], file=sys.stderr, flush=True)
         interval, deadline = int(dc.get("interval", 5)), time.time() + int(dc.get("expires_in", 900))
         while time.time() < deadline:
             time.sleep(interval)
-            tok = self._post("token", {"grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-                                       "device_code": dc["device_code"]})
-            err = tok.get("error")
-            if err == "authorization_pending":
-                continue
-            if err == "slow_down":
-                interval += 5
-                continue
-            if err:
-                raise GraphError(f"sign-in failed: {tok.get('error_description') or err}")
-            user = whoami(tok["access_token"])
-            if user not in allowed_users:
-                raise GraphError(f"signed in as {user!r}, which is not in config.mailbox; nothing saved")
-            self.save({"user": user, "refresh_token": tok["refresh_token"],
-                       "saved": datetime.now(timezone.utc).isoformat(timespec="seconds")})
-            return user
+            user = self.device_poll(dc, allowed_users, whoami)
+            if user:
+                return user
         raise GraphError("sign-in timed out; run login again")
+
+    def stored_user(self) -> str | None:
+        """Who the saved sign-in belongs to, without contacting Microsoft (so it never rotates the token)."""
+        try:
+            return self.load().get("user")
+        except (GraphError, OSError, ValueError):
+            return None
 
     def load(self) -> dict:
         if not os.path.exists(self.path):

@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inbox Zeroish</title>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e3e3e0;
+  --accent: #2f5bd3; --accent-ink: #ffffff; --ok: #1f7a4d; --warn: #9a6200; --bad: #b3261e;
+  --chip: #eef1f8; --field: #ffffff; --code: #f2f2ef;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161618; --panel: #1f1f22; --ink: #ececee; --muted: #9a9aa2; --line: #333338;
+    --accent: #7c9cff; --accent-ink: #0d0d10; --ok: #5cc28f; --warn: #e0a84a; --bad: #ff7b72;
+    --chip: #2a2e3a; --field: #18181b; --code: #18181b;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); }
+.bar { max-width: 1100px; margin: 0 auto; padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.brand { font-weight: 650; margin-right: 8px; }
+.path { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40ch; }
+.spacer { flex: 1; }
+nav { max-width: 1100px; margin: 0 auto; padding: 0 16px; display: flex; gap: 2px; overflow-x: auto; }
+nav button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 10px; color: var(--muted);
+  font: inherit; cursor: pointer; white-space: nowrap; }
+nav button.on { color: var(--ink); border-bottom-color: var(--accent); }
+main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+section { display: none; } section.on { display: block; }
+h2 { font-size: 16px; margin: 4px 0 4px; } h3 { font-size: 14px; margin: 0 0 6px; }
+p.lead { color: var(--muted); margin: 0 0 14px; max-width: 75ch; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+.grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+input, select, textarea { width: 100%; font: inherit; color: var(--ink); background: var(--field);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+textarea { min-height: 64px; resize: vertical; }
+textarea.mono, pre { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+input[type=checkbox] { width: auto; }
+button.btn { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+button.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.btn:disabled { opacity: .45; cursor: default; }
+button.icon { font: inherit; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px 6px; }
+button.icon:hover { color: var(--ink); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.msg { font-size: 13px; }
+.msg.ok { color: var(--ok); } .msg.warn { color: var(--warn); } .msg.bad { color: var(--bad); }
+.problems { margin: 0 0 12px; padding: 10px 14px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); }
+.problems:empty { display: none; }
+.problems li { margin: 2px 0; }
+.rule-head { display: flex; gap: 8px; align-items: center; }
+.rule-num { color: var(--muted); width: 2ch; text-align: right; font-variant-numeric: tabular-nums; }
+.rule-id { max-width: 200px; font-weight: 600; }
+.summary { color: var(--muted); font-size: 13px; margin: 6px 0 0 calc(2ch + 8px); }
+.summary b { color: var(--ink); font-weight: 600; }
+.cond { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); margin: 10px 0 0 calc(2ch + 8px); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chips label { display: inline-flex; gap: 4px; align-items: center; margin: 0; padding: 2px 8px; border-radius: 999px;
+  background: var(--chip); color: var(--ink); font-size: 12px; cursor: pointer; }
+.chips input { margin: 0; }
+details > summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.sim-out { margin-top: 10px; }
+.trace { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+.trace li.hit { color: var(--ink); font-weight: 600; }
+pre { background: var(--code); border: 1px solid var(--line); border-radius: 6px; padding: 10px; overflow: auto; max-height: 420px; white-space: pre-wrap; }
+table { border-collapse: collapse; width: 100%; }
+td, th { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); font-size: 13px; }
+th { color: var(--muted); font-weight: 500; }
+.big { font-size: 20px; font-weight: 650; }
+.code { font: 600 22px ui-monospace, Menlo, monospace; letter-spacing: 2px; }
+.hidden { display: none !important; }
+@media (max-width: 640px) { .path { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <span class="brand">Inbox Zeroish</span>
+    <span class="path" id="path"></span>
+    <span class="spacer"></span>
+    <span class="msg" id="saveMsg"></span>
+    <button class="btn" id="revertBtn" disabled>Revert</button>
+    <button class="btn primary" id="saveBtn" disabled>Save</button>
+  </div>
+  <nav id="tabs"></nav>
+</header>
+<main>
+  <ul class="problems" id="problems"></ul>
+
+  <section id="tab-rules">
+    <h2>Rules</h2>
+    <p class="lead">Checked top to bottom; the first rule that matches decides. A rule with no condition on a dimension ignores it.
+      Keep rules hold mail in the inbox; anything else names a folder.</p>
+    <div class="card">
+      <h3>Try it</h3>
+      <div class="grid">
+        <div><label>Sender</label><select id="simSender"></select></div>
+        <div><label>Category (from the classifier)</label><select id="simCategory"></select></div>
+        <div><label>Confidence</label><input id="simConf" type="number" min="0" max="1" step="0.05" value="0.95"></div>
+        <div><label>Age</label><div class="row"><input id="simAge" type="number" min="0" step="1" value="2" style="width:90px">
+          <select id="simAgeUnit" style="width:100px"><option value="1">hours</option><option value="24" selected>days</option></select></div></div>
+        <div><label>Read</label><select id="simRead"><option value="false">unread</option><option value="true">read</option></select></div>
+        <div><label>Replied</label><select id="simReplied"></select></div>
+        <div><label>Pass</label><select id="simPass"><option>all</option><option>fast</option><option>cleanup</option></select></div>
+      </div>
+      <div class="sim-out" id="simOut"></div>
+    </div>
+    <div id="rules"></div>
+    <button class="btn" id="addRule">Add rule</button>
+  </section>
+
+  <section id="tab-categories">
+    <h2>Categories</h2>
+    <p class="lead">What the classifier chooses between. "Means" is the definition; "not" settles the cases it tends to get wrong.
+      Changing these re-classifies mail on the next run.</p>
+    <div id="cats"></div>
+    <div class="row"><input id="newCat" placeholder="new_category_name" style="max-width:240px"><button class="btn" id="addCat">Add category</button></div>
+    <div class="card" style="margin-top:14px">
+      <h3>Extra notes for the classifier</h3>
+      <label>One per line</label><textarea id="notes" rows="4"></textarea>
+    </div>
+    <details class="card"><summary>Show the prompt these build</summary><pre id="prompt"></pre></details>
+  </section>
+
+  <section id="tab-senders">
+    <h2>People and senders</h2>
+    <p class="lead">Addresses or whole domains, one per line. Priority mail is never moved. Internal and known senders count as trusted.</p>
+    <div class="card grid">
+      <div><label>Your mailbox</label><input id="ownerMailbox"></div>
+      <div style="grid-column: 1 / -1"><label>Who you are (helps the classifier)</label><textarea id="ownerDesc" rows="2"></textarea></div>
+      <div><label>Your other addresses</label><textarea id="aliases" rows="3"></textarea></div>
+    </div>
+    <div class="card grid">
+      <div><label>Priority</label><textarea id="sPriority" rows="6"></textarea></div>
+      <div><label>Internal</label><textarea id="sInternal" rows="6"></textarea></div>
+      <div><label>Known (customers, partners)</label><textarea id="sKnown" rows="6"></textarea></div>
+      <div><label>Known-senders file (written by your own sync)</label><input id="knownFile" placeholder="~/.config/zeroish/known.txt"></div>
+    </div>
+  </section>
+
+  <section id="tab-backstop">
+    <h2>Backstop and limits</h2>
+    <p class="lead">Past the backstop age nothing stays: keep rules stop protecting, move rules ignore the relaxed conditions,
+      and whatever is left goes to the backstop folder.</p>
+    <div class="card grid">
+      <div><label>Backstop after (days)</label><input id="staleDays" type="number" min="1"></div>
+      <div><label>Then move to</label><input id="staleThen" list="folderList"></div>
+      <div><label>Ignore these once stale</label><div class="chips">
+        <label><input type="checkbox" id="relaxRead"> read</label><label><input type="checkbox" id="relaxReplied"> replied</label></div></div>
+      <div><label>Backstop on</label><select id="staleOn"><option value="on">on</option><option value="off">off</option></select></div>
+    </div>
+    <div class="card grid">
+      <div><label>Max moves per run</label><input id="lMax" type="number" min="1"></div>
+      <div><label>Emails per run</label><input id="lScan" type="number" min="1"></div>
+      <div><label>Sent items to learn from</label><input id="lSent" type="number" min="0"></div>
+      <div><label>Sweep order</label><select id="lOrder"><option value="newest_first">newest first</option><option value="oldest_first">oldest first</option></select></div>
+    </div>
+  </section>
+
+  <section id="tab-classifier">
+    <h2>Classifier</h2>
+    <p class="lead">Tried in order; the first that answers wins. Keys stay in environment variables; this page only stores their names.</p>
+    <div class="card grid">
+      <div><label>Minimum confidence</label><input id="minConf" type="number" min="0" max="1" step="0.05"></div>
+      <div><label>Timeout (seconds)</label><input id="timeout" type="number" min="1"></div>
+    </div>
+    <div id="backends"></div>
+    <button class="btn" id="addBackend">Add model</button>
+  </section>
+
+  <section id="tab-status">
+    <h2>Status</h2>
+    <p class="lead">From the audit log of the scheduled runs on this machine.</p>
+    <div id="status" class="card">Loading…</div>
+    <button class="btn" id="refreshStatus">Refresh</button>
+  </section>
+
+  <section id="tab-connect">
+    <h2>Connect Microsoft 365</h2>
+    <p class="lead">Needs an Entra app registration with delegated Mail.ReadWrite and public client flows on
+      (see docs/entra-setup.md). The sign-in token is saved on this machine only, readable by you alone.</p>
+    <div class="card grid">
+      <div><label>Tenant ID</label><input id="tenant"></div>
+      <div><label>App (client) ID</label><input id="clientId"></div>
+      <div><label>Token file</label><input id="tokenPath" placeholder="~/.config/zeroish/token.json"></div>
+    </div>
+    <div class="card">
+      <div id="authState"></div>
+      <div id="deviceBox" class="hidden" style="margin-top:10px">
+        <div>Open <a id="deviceLink" target="_blank" rel="noopener"></a> and enter</div>
+        <div class="code" id="deviceCode"></div>
+        <div class="msg" id="deviceMsg">Waiting for you to finish signing in…</div>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="btn primary" id="signIn">Sign in with Microsoft</button></div>
+    </div>
+  </section>
+
+  <section id="tab-json">
+    <h2>Raw JSON</h2>
+    <p class="lead">The same file, as text. Apply loads it into the other tabs; Save writes it.</p>
+    <textarea id="raw" class="mono" rows="30" spellcheck="false"></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn" id="applyRaw">Apply</button><span class="msg" id="rawMsg"></span></div>
+  </section>
+  <datalist id="folderList"></datalist>
+</main>
+
+<script>
+"use strict";
+const TOKEN = new URLSearchParams(location.hash.slice(1)).get("t") || "";
+const TABS = [["rules","Rules"],["categories","Categories"],["senders","Senders"],["backstop","Backstop"],
+              ["classifier","Classifier"],["status","Status"],["connect","Connect"],["json","JSON"]];
+let S = null;          // server state
+let cfg = null;        // the config being edited (raw JSON shape)
+let saved = "";        // JSON of the last saved config
+let checkTimer = null, lastCheck = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const lines = t => t.split("\n").map(s => s.trim()).filter(Boolean);
+
+async function api(path, body) {
+  const r = await fetch(path, {method: body === undefined ? "GET" : "POST",
+    headers: {"X-Zeroish-Token": TOKEN, "Content-Type": "application/json"},
+    body: body === undefined ? undefined : JSON.stringify(body)});
+  const data = await r.json().catch(() => ({error: "bad reply"}));
+  if (r.status === 403) throw new Error(data.error || "forbidden");
+  return {status: r.status, data};
+}
+
+// ── tabs ──
+function showTab(name) {
+  for (const [k] of TABS) { $("tab-" + k).classList.toggle("on", k === name); }
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
+  try { localStorage.setItem("zeroish-tab", name); } catch (e) {}
+  if (name === "status") loadStatus();
+  if (name === "json") $("raw").value = JSON.stringify(cfg, null, 2);
+}
+$("tabs").innerHTML = TABS.map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join("");
+$("tabs").addEventListener("click", e => { if (e.target.dataset.tab) showTab(e.target.dataset.tab); });
+
+// ── change tracking and checking ──
+function changed() {
+  const dirty = curJson() !== saved;
+  $("saveBtn").disabled = !dirty || (lastCheck && !lastCheck.ok);
+  $("revertBtn").disabled = !dirty;
+  $("saveMsg").textContent = dirty ? "Unsaved changes" : "";
+  $("saveMsg").className = "msg" + (dirty ? " warn" : "");
+  clearTimeout(checkTimer);
+  checkTimer = setTimeout(runCheck, 300);
+}
+async function runCheck() {
+  const {data} = await api("/api/check", {config: cfg});
+  lastCheck = data;
+  const items = [];
+  if (data.error) items.push(`<li class="msg bad">${esc(data.error)}</li>`);
+  for (const p of data.problems || []) items.push(`<li class="msg bad">${esc(p)}</li>`);
+  for (const p of data.notes || []) items.push(`<li class="msg">${esc(p)}</li>`);
+  $("problems").innerHTML = items.join("");
+  $("prompt").textContent = data.prompt || "";
+  const dirty = curJson() !== saved;
+  $("saveBtn").disabled = !dirty || !data.ok;
+  simulate();
+}
+
+// ── rules ──
+const catNames = () => Object.keys(cfg.categories || {});
+function ruleSummary(r) {
+  const w = r.when || {}, parts = [];
+  const list = v => [].concat(v).join(" or ");
+  if (w.sender) parts.push(`sender ${list(w.sender)}`);
+  if (w.trusted !== undefined) parts.push(w.trusted ? "trusted sender" : "untrusted sender");
+  if (w.category) parts.push(`<b>${esc(list(w.category))}</b>`);
+  if (w.min_confidence !== undefined) parts.push(`confidence ≥ ${w.min_confidence}`);
+  if (w.read !== undefined) parts.push(w.read ? "read" : "unread");
+  if (w.replied) parts.push(`replied ${list(w.replied).replaceAll("_", " ")}`);
+  if (w.min_age_h !== undefined) parts.push(`older than ${fmtAge(w.min_age_h)}`);
+  if (w.max_age_h !== undefined) parts.push(`newer than ${fmtAge(w.max_age_h)}`);
+  const then = r.then === "keep" ? "<b>stays in the inbox</b>" : `moves to <b>${esc(r.then)}</b>`;
+  const pass = r.pass && r.pass !== "both" ? ` · ${esc([].concat(r.pass).join(", "))} pass only` : "";
+  return `${parts.length ? parts.map(p => p.startsWith("<b>") ? p : esc(p)).join(", ") : "every email"} → ${then}${pass}`;
+}
+const fmtAge = h => h % 24 === 0 ? `${h / 24} day${h === 24 ? "" : "s"}` : `${h} h`;
+
+function chipSet(name, options, selected, idx) {
+  const sel = new Set([].concat(selected || []));
+  return `<div class="chips">${options.map(o => `<label><input type="checkbox" data-r="${idx}" data-k="${name}" value="${esc(o)}"
+    ${sel.has(o) ? "checked" : ""}> ${esc(o.replaceAll("_", " "))}</label>`).join("")}</div>`;
+}
+function triSelect(key, val, yes, no, idx) {
+  const v = val === undefined ? "" : String(val);
+  return `<select data-r="${idx}" data-k="${key}"><option value="" ${v === "" ? "selected" : ""}>any</option>
+    <option value="true" ${v === "true" ? "selected" : ""}>${yes}</option><option value="false" ${v === "false" ? "selected" : ""}>${no}</option></select>`;
+}
+function renderRules() {
+  const sch = S.schema, rs = cfg.rules || [];
+  $("rules").innerHTML = rs.map((r, i) => {
+    const w = r.when || {}, pass = r.pass || "both";
+    return `<div class="card">
+      <div class="rule-head"><span class="rule-num">${i + 1}</span>
+        <input class="rule-id" data-r="${i}" data-k="id" value="${esc(r.id || "")}" placeholder="rule name">
+        <span class="spacer"></span>
+        <button class="icon" data-act="up" data-r="${i}" title="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
+        <button class="icon" data-act="down" data-r="${i}" title="Move down" ${i === rs.length - 1 ? "disabled" : ""}>↓</button>
+        <button class="icon" data-act="del" data-r="${i}" title="Delete">Delete</button></div>
+      <div class="summary">${ruleSummary(r)}</div>
+      <details ${r._open ? "open" : ""} data-r="${i}"><summary style="margin:6px 0 0 calc(2ch + 8px)">Edit conditions</summary>
+      <div class="cond">
+        <div style="grid-column: 1 / -1"><label>Category</label>${chipSet("category", catNames(), w.category, i)}</div>
+        <div style="grid-column: 1 / -1"><label>Sender</label>${chipSet("sender", sch.sender_kinds, w.sender, i)}</div>
+        <div><label>Trusted sender</label>${triSelect("trusted", w.trusted, "trusted", "untrusted", i)}</div>
+        <div><label>Read</label>${triSelect("read", w.read, "read", "unread", i)}</div>
+        <div style="grid-column: span 2"><label>Replied</label>${chipSet("replied", sch.replied, w.replied, i)}</div>
+        <div><label>Older than (hours)</label><input type="number" min="0" data-r="${i}" data-k="min_age_h" value="${w.min_age_h ?? ""}"></div>
+        <div><label>Newer than (hours)</label><input type="number" min="0" data-r="${i}" data-k="max_age_h" value="${w.max_age_h ?? ""}"></div>
+        <div><label>Min confidence</label><input type="number" min="0" max="1" step="0.05" data-r="${i}" data-k="min_confidence" value="${w.min_confidence ?? ""}" placeholder="default"></div>
+        <div><label>Then</label><input list="folderList" data-r="${i}" data-k="then" value="${esc(r.then || "")}" placeholder="keep, or a folder"></div>
+        <div><label>Pass</label><select data-r="${i}" data-k="pass">${["both", ...sch.passes].map(p =>
+          `<option ${String(pass) === p ? "selected" : ""}>${p}</option>`).join("")}</select></div>
+      </div></details></div>`;
+  }).join("");
+  const folders = new Set((cfg.rules || []).map(r => r.then).filter(t => t && t !== "keep"));
+  if (cfg.stale && cfg.stale.then) folders.add(cfg.stale.then);
+  $("folderList").innerHTML = ["keep", ...folders].map(f => `<option value="${esc(f)}">`).join("");
+}
+$("rules").addEventListener("toggle", e => {
+  const i = e.target.dataset && e.target.dataset.r; if (i !== undefined && cfg.rules[i]) cfg.rules[i]._open = e.target.open;
+}, true);
+$("rules").addEventListener("click", e => {
+  const act = e.target.dataset.act, i = +e.target.dataset.r; if (!act) return;
+  const rs = cfg.rules;
+  if (act === "up" && i > 0) [rs[i - 1], rs[i]] = [rs[i], rs[i - 1]];
+  if (act === "down" && i < rs.length - 1) [rs[i + 1], rs[i]] = [rs[i], rs[i + 1]];
+  if (act === "del" && confirmInline(e.target)) rs.splice(i, 1); else if (act === "del") return;
+  renderRules(); changed();
+});
+function confirmInline(btn) {   // two clicks to delete, no browser dialog
+  if (btn.dataset.armed) return true;
+  btn.dataset.armed = "1"; btn.textContent = "Click again to delete";
+  setTimeout(() => { btn.dataset.armed = ""; btn.textContent = "Delete"; }, 3000);
+  return false;
+}
+$("rules").addEventListener("change", e => {
+  const t = e.target, i = t.dataset.r, k = t.dataset.k; if (i === undefined || !k) return;
+  const r = cfg.rules[+i]; r.when = r.when || {};
+  if (k === "id") r.id = t.value.trim();
+  else if (k === "then") r.then = t.value.trim();
+  else if (k === "pass") { if (t.value === "both") delete r.pass; else r.pass = t.value; }
+  else if (t.type === "checkbox") {
+    const vals = [...document.querySelectorAll(`#rules input[data-r="${i}"][data-k="${k}"]:checked`)].map(x => x.value);
+    if (vals.length === 0) delete r.when[k]; else r.when[k] = vals.length === 1 ? vals[0] : vals;
+  } else if (k === "trusted" || k === "read") {
+    if (t.value === "") delete r.when[k]; else r.when[k] = t.value === "true";
+  } else {
+    if (t.value === "") delete r.when[k]; else r.when[k] = Number(t.value);
+  }
+  const card = t.closest(".card"); card.querySelector(".summary").innerHTML = ruleSummary(r);
+  changed();
+});
+$("addRule").onclick = () => {
+  cfg.rules = cfg.rules || [];
+  let n = cfg.rules.length + 1; while (cfg.rules.some(r => r.id === "rule-" + n)) n++;
+  cfg.rules.push({id: "rule-" + n, when: {}, then: "keep", _open: true});
+  renderRules(); changed();
+};
+
+// ── simulator ──
+function fillSim() {
+  const opt = (arr, v) => arr.map(x => `<option ${x === v ? "selected" : ""} value="${esc(x)}">${esc(x.replaceAll("_", " "))}</option>`).join("");
+  $("simSender").innerHTML = opt(S.schema.sender_kinds, $("simSender").value || "unknown");
+  $("simCategory").innerHTML = opt(catNames(), $("simCategory").value || "newsletter");
+  $("simReplied").innerHTML = opt(S.schema.replied, $("simReplied").value || "never");
+}
+async function simulate() {
+  if (!lastCheck || lastCheck.error) { $("simOut").innerHTML = ""; return; }
+  const facts = {sender: $("simSender").value, category: $("simCategory").value, confidence: +$("simConf").value,
+    age_h: +$("simAge").value * +$("simAgeUnit").value, read: $("simRead").value === "true", replied: $("simReplied").value};
+  const {data} = await api("/api/simulate", {config: stripUi(cfg), facts, pass: $("simPass").value});
+  if (data.error) { $("simOut").innerHTML = `<span class="msg bad">${esc(data.error)}</span>`; return; }
+  const head = data.action === "move" ? `Moves to <b>${esc(data.to)}</b>` : "<b>Stays in the inbox</b>";
+  const by = data.rule ? ` by rule <b>${esc(data.rule)}</b>` : " (no rule matched)";
+  $("simOut").innerHTML = `<div class="big">${head}${by}</div>
+    <ol class="trace">${data.trace.map(t => `<li class="${t.result === "matched" ? "hit" : ""}">${esc(t.rule)}: ${esc(t.result)}</li>`).join("")}</ol>`;
+}
+["simSender","simCategory","simConf","simAge","simAgeUnit","simRead","simReplied","simPass"].forEach(id => $(id).addEventListener("change", simulate));
+
+// ── categories ──
+function renderCats() {
+  const cats = cfg.categories || {};
+  $("cats").innerHTML = Object.entries(cats).map(([name, c]) => `<div class="card">
+    <div class="row"><b>${esc(name)}</b><span class="spacer"></span>
+      ${name === "other" ? `<span class="msg">always present</span>` : `<button class="icon" data-delcat="${esc(name)}">Delete</button>`}</div>
+    <div class="grid" style="margin-top:8px; grid-template-columns: 1fr 1fr">
+      <div><label>Means</label><textarea data-cat="${esc(name)}" data-f="means">${esc(c.means || "")}</textarea></div>
+      <div><label>Not (tie-breakers)</label><textarea data-cat="${esc(name)}" data-f="not">${esc(c.not || "")}</textarea></div>
+    </div></div>`).join("");
+  $("notes").value = ((cfg.classifier || {}).notes || []).join("\n");
+}
+$("cats").addEventListener("input", e => {
+  const t = e.target, n = t.dataset.cat; if (!n) return;
+  if (t.value.trim()) cfg.categories[n][t.dataset.f] = t.value; else delete cfg.categories[n][t.dataset.f];
+  changed();
+});
+$("cats").addEventListener("click", e => {
+  const n = e.target.dataset.delcat; if (!n) return;
+  if (!confirmInline(e.target)) return;
+  delete cfg.categories[n]; renderCats(); renderRules(); fillSim(); changed();
+});
+$("addCat").onclick = () => {
+  const n = $("newCat").value.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+  if (!n || cfg.categories[n]) return;
+  cfg.categories[n] = {means: ""}; $("newCat").value = ""; renderCats(); renderRules(); fillSim(); changed();
+};
+$("notes").addEventListener("input", () => {
+  cfg.classifier = cfg.classifier || {}; const v = lines($("notes").value);
+  if (v.length) cfg.classifier.notes = v; else delete cfg.classifier.notes; changed();
+});
+
+// ── senders, backstop, classifier, connect: simple field bindings ──
+const listField = (get, set) => ({get: () => (get() || []).join("\n"), set: v => set(lines(v))});
+function bind(id, get, set) { const el = $(id); el._get = get; el._set = set;
+  el.addEventListener(el.type === "checkbox" || el.tagName === "SELECT" ? "change" : "input", () => { set(el.type === "checkbox" ? el.checked : el.value); changed(); }); }
+const sub = (o, k) => (o[k] = o[k] || {});
+const setOrDel = (o, k, v) => { if (v === "" || v === undefined || (Array.isArray(v) && !v.length)) delete o[k]; else o[k] = v; };
+bind("ownerMailbox", () => cfg.owner.mailbox, v => cfg.owner.mailbox = v.trim());
+bind("ownerDesc", () => cfg.owner.description, v => cfg.owner.description = v);
+bind("aliases", () => (cfg.owner.aliases || []).join("\n"), v => setOrDel(cfg.owner, "aliases", lines(v)));
+bind("sPriority", () => ((cfg.senders || {}).priority || []).join("\n"), v => setOrDel(sub(cfg, "senders"), "priority", lines(v)));
+bind("sInternal", () => ((cfg.senders || {}).internal || []).join("\n"), v => setOrDel(sub(cfg, "senders"), "internal", lines(v)));
+bind("sKnown", () => ((cfg.senders || {}).known || []).join("\n"), v => setOrDel(sub(cfg, "senders"), "known", lines(v)));
+bind("knownFile", () => (cfg.senders || {}).known_file || "", v => setOrDel(sub(cfg, "senders"), "known_file", v.trim()));
+let staleMemo = null;
+bind("staleOn", () => cfg.stale ? "on" : "off", v => {
+  if (v === "off") { staleMemo = cfg.stale; delete cfg.stale; } else cfg.stale = staleMemo || {after_days: 30, then: "Archive"};
+  fillFields();
+});
+bind("staleDays", () => (cfg.stale || {}).after_days ?? "", v => { if (cfg.stale) cfg.stale.after_days = Number(v); });
+bind("staleThen", () => (cfg.stale || {}).then || "", v => { if (cfg.stale) cfg.stale.then = v.trim(); });
+const relaxGet = k => () => ((cfg.stale || {}).relax || ["read"]).includes(k);
+const relaxSet = k => on => { if (!cfg.stale) return; const s = new Set(cfg.stale.relax || ["read"]);
+  on ? s.add(k) : s.delete(k); cfg.stale.relax = [...s]; };
+bind("relaxRead", relaxGet("read"), relaxSet("read"));
+bind("relaxReplied", relaxGet("replied"), relaxSet("replied"));
+const lim = k => [() => (cfg.limits || {})[k] ?? "", v => setOrDel(sub(cfg, "limits"), k, v === "" ? "" : (k === "sweep_order" ? v : Number(v)))];
+bind("lMax", ...lim("max_moves_per_run")); bind("lScan", ...lim("scan_limit"));
+bind("lSent", ...lim("sent_lookback")); bind("lOrder", () => (cfg.limits || {}).sweep_order || "newest_first", lim("sweep_order")[1]);
+bind("minConf", () => (cfg.classifier || {}).min_confidence ?? "", v => setOrDel(sub(cfg, "classifier"), "min_confidence", v === "" ? "" : Number(v)));
+bind("timeout", () => (cfg.classifier || {}).timeout_s ?? "", v => setOrDel(sub(cfg, "classifier"), "timeout_s", v === "" ? "" : Number(v)));
+bind("tenant", () => cfg.auth.tenant || "", v => cfg.auth.tenant = v.trim());
+bind("clientId", () => cfg.auth.client_id || "", v => cfg.auth.client_id = v.trim());
+bind("tokenPath", () => cfg.auth.token_path || "", v => setOrDel(cfg.auth, "token_path", v.trim()));
+function fillFields() {
+  document.querySelectorAll("input, textarea, select").forEach(el => {
+    if (!el._get) return; const v = el._get();
+    if (el.type === "checkbox") el.checked = !!v; else el.value = v ?? "";
+  });
+  ["staleDays", "staleThen", "relaxRead", "relaxReplied"].forEach(id => $(id).disabled = !cfg.stale);
+}
+
+// ── classifier backends ──
+const BK = [["name","Name"],["type","Type"],["url","URL"],["model","Model"],["key_env","Key env var"],["health_url","Health URL"]];
+function renderBackends() {
+  const bs = (cfg.classifier || {}).backends || [];
+  $("backends").innerHTML = bs.map((b, i) => `<div class="card">
+    <div class="row"><b>${i + 1}. ${esc(b.name || "")}</b><span class="spacer"></span>
+      <button class="icon" data-bact="up" data-b="${i}" ${i === 0 ? "disabled" : ""}>↑</button>
+      <button class="icon" data-bact="down" data-b="${i}" ${i === bs.length - 1 ? "disabled" : ""}>↓</button>
+      <button class="icon" data-bact="del" data-b="${i}">Delete</button></div>
+    <div class="grid" style="margin-top:8px">${BK.map(([k, l]) => k === "type"
+      ? `<div><label>${l}</label><select data-b="${i}" data-k="type">${["openai", "anthropic"].map(t =>
+          `<option ${b.type === t ? "selected" : ""}>${t}</option>`).join("")}</select></div>`
+      : `<div><label>${l}</label><input data-b="${i}" data-k="${k}" value="${esc(b[k] || "")}"></div>`).join("")}
+      <div><label>Thinking</label><div class="chips"><label><input type="checkbox" data-b="${i}" data-k="disable_thinking"
+        ${b.disable_thinking ? "checked" : ""}> turn off</label></div></div>
+    </div></div>`).join("");
+}
+$("backends").addEventListener("change", e => {
+  const t = e.target, i = t.dataset.b, k = t.dataset.k; if (i === undefined || !k) return;
+  const b = cfg.classifier.backends[+i];
+  if (t.type === "checkbox") { if (t.checked) b[k] = true; else delete b[k]; } else setOrDel(b, k, t.value.trim());
+  renderBackends(); changed();
+});
+$("backends").addEventListener("click", e => {
+  const a = e.target.dataset.bact, i = +e.target.dataset.b; if (!a) return;
+  const bs = cfg.classifier.backends;
+  if (a === "up") [bs[i - 1], bs[i]] = [bs[i], bs[i - 1]];
+  if (a === "down") [bs[i + 1], bs[i]] = [bs[i], bs[i + 1]];
+  if (a === "del") { if (!confirmInline(e.target)) return; bs.splice(i, 1); }
+  renderBackends(); changed();
+});
+$("addBackend").onclick = () => { const c = sub(cfg, "classifier"); c.backends = c.backends || [];
+  c.backends.push({name: "model-" + (c.backends.length + 1), type: "openai", url: "", model: "", key_env: ""});
+  renderBackends(); changed(); };
+
+// ── status ──
+async function loadStatus() {
+  const {data} = await api("/api/status");
+  if (data.error) { $("status").innerHTML = `<span class="msg bad">${esc(data.error)}</span>`; return; }
+  const lanes = Object.entries(data.last_run || {}).map(([k, v]) => `<tr><td>${esc(k === "new" ? "New mail" : "Backlog sweep")}</td>
+    <td>${esc(new Date(v.at).toLocaleString())}</td><td>${v.ok ? "ok" : "failed"}</td><td>${v.scanned ?? ""}</td><td>${v.moved ?? ""}</td></tr>`).join("");
+  const folders = Object.entries(data.by_folder || {}).sort((a, b) => b[1] - a[1])
+    .map(([f, n]) => `<tr><td>${esc(f)}</td><td>${n}</td></tr>`).join("");
+  $("status").innerHTML = `<div class="big ${data.healthy ? "msg ok" : "msg bad"}">${data.healthy ? "Healthy" : "Needs attention"}</div>
+    ${(data.problems || []).map(p => `<div class="msg bad">${esc(p)}</div>`).join("")}
+    <p class="lead" style="margin-top:8px">Last ${data.window_h} hours: ${data.runs} runs, ${data.failed_runs} failed, ${data.moved} emails moved.</p>
+    ${lanes ? `<table><tr><th>Lane</th><th>Last run</th><th>Result</th><th>Scanned</th><th>Moved</th></tr>${lanes}</table>` : ""}
+    ${folders ? `<h3 style="margin-top:14px">Moved by folder</h3><table>${folders}</table>` : ""}`;
+}
+$("refreshStatus").onclick = loadStatus;
+
+// ── connect ──
+function renderAuth() {
+  const a = S.auth;
+  $("authState").innerHTML = !a.configured ? `<span class="msg warn">Add the tenant and app IDs above, then save.</span>`
+    : a.user ? `<span class="msg ${a.matches ? "ok" : "bad"}">Signed in as ${esc(a.user)}${a.matches ? "" : " (not the mailbox in this config)"}</span>`
+    : `<span class="msg warn">Not signed in yet.</span>`;
+  $("signIn").textContent = a.user ? "Sign in again" : "Sign in with Microsoft";
+}
+$("signIn").onclick = async () => {
+  if (curJson() !== saved) { $("deviceMsg").textContent = ""; $("authState").innerHTML = `<span class="msg warn">Save first.</span>`; return; }
+  const {data} = await api("/api/auth/start", {});
+  if (data.error) { $("authState").innerHTML = `<span class="msg bad">${esc(data.error)}</span>`; return; }
+  $("deviceBox").classList.remove("hidden");
+  $("deviceLink").href = data.verification_uri; $("deviceLink").textContent = data.verification_uri;
+  $("deviceCode").textContent = data.user_code; $("deviceMsg").textContent = "Waiting for you to finish signing in…";
+  const poll = async () => {
+    const {data: p} = await api("/api/auth/poll", {});
+    if (p.state === "pending") return setTimeout(poll, data.interval * 1000);
+    $("deviceMsg").textContent = p.state === "signed_in" ? `Signed in as ${p.user}.` : (p.error || "Sign-in expired; try again.");
+    $("deviceMsg").className = "msg " + (p.state === "signed_in" ? "ok" : "bad");
+    await reload(false);
+  };
+  setTimeout(poll, data.interval * 1000);
+};
+
+// ── raw JSON ──
+$("applyRaw").onclick = () => {
+  try { cfg = JSON.parse($("raw").value); $("rawMsg").textContent = "Loaded into the other tabs."; $("rawMsg").className = "msg ok"; renderAll(); changed(); }
+  catch (e) { $("rawMsg").textContent = e.message; $("rawMsg").className = "msg bad"; }
+};
+
+// ── load, save, revert ──
+const curJson = () => JSON.stringify(stripUi(cfg));
+function stripUi(c) { return JSON.parse(JSON.stringify(c, (k, v) => k === "_open" ? undefined : v)); }
+function renderAll() {
+  cfg.owner = cfg.owner || {}; cfg.auth = cfg.auth || {}; cfg.categories = cfg.categories || {}; cfg.rules = cfg.rules || [];
+  renderRules(); renderCats(); renderBackends(); fillSim(); fillFields(); renderAuth();
+}
+async function reload(resetEdits = true) {
+  const {data} = await api("/api/state");
+  S = data;
+  $("path").textContent = S.path; $("path").title = S.path;
+  if (resetEdits || !cfg) {
+    if (S.load_error) { $("problems").innerHTML = `<li class="msg bad">${esc(S.load_error)}</li>`; }
+    if (!S.config) {
+      const st = await api("/api/starter");
+      cfg = st.data.config;
+      saved = "";
+      $("saveMsg").textContent = S.exists ? "File is broken; starting from the example" : "No config yet; starting from the example";
+    } else { cfg = S.config; saved = JSON.stringify(cfg); }
+  }
+  renderAll(); changed();
+}
+$("saveBtn").onclick = async () => {
+  const clean = stripUi(cfg);
+  const {status, data} = await api("/api/save", {config: clean, mtime: S.mtime});
+  if (data.saved) { S.mtime = data.mtime; cfg = clean; saved = JSON.stringify(cfg);
+    await reload(false); $("saveMsg").textContent = "Saved"; $("saveMsg").className = "msg ok"; }
+  else { $("saveMsg").textContent = data.error || (data.problems || []).join("; ") || `Not saved (${status})`; $("saveMsg").className = "msg bad"; }
+  $("saveBtn").disabled = !data.saved ? false : true;
+};
+$("revertBtn").onclick = () => { if (saved) { cfg = JSON.parse(saved); renderAll(); changed(); } };
+window.addEventListener("beforeunload", e => { if (cfg && curJson() !== saved) { e.preventDefault(); e.returnValue = ""; } });
+
+(async () => {
+  if (!TOKEN) { document.querySelector("main").innerHTML = `<p class="lead">Open the full URL that <code>zeroish ui</code> printed (it carries a one-time key).</p>`; return; }
+  let tab = "rules"; try { tab = localStorage.getItem("zeroish-tab") || "rules"; } catch (e) {}
+  try { await reload(); showTab(TABS.some(([k]) => k === tab) ? tab : "rules"); }
+  catch (e) { document.querySelector("main").innerHTML = `<p class="lead msg bad">${esc(e.message)}</p>`; }
+})();
+</script>
+</body>
+</html>

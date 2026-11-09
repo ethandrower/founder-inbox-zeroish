@@ -166,11 +166,18 @@ def build_parser():
     ev.add_argument("--labels", required=True)
     ev.set_defaults(fn=cmd_eval)
     sub.add_parser("folders", help="mail folders and which can be move targets").set_defaults(fn=cmd_folders)
+    ui = sub.add_parser("ui", help="optional local web page: edit rules, try them, check health, sign in")
+    ui.add_argument("--port", type=int, default=8765)
+    ui.add_argument("--no-browser", action="store_true", help="just print the URL (e.g. over an SSH tunnel)")
     return p
 
 
 def main(argv=None):
     a = build_parser().parse_args(argv)
+    if a.cmd == "ui":  # starts even with a missing or broken config: fixing it is part of the job
+        from . import web
+        web.serve(config.config_path(a.config), a.port, not a.no_browser)
+        return 0
     try:
         cfg = config.load(a.config)
         out = a.fn(cfg, a)
