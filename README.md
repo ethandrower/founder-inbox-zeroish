@@ -67,7 +67,7 @@ Anything unmatched goes to `stale.then` (e.g. Archive). This applies in the clea
 6. Schedule two lanes every 10 minutes, each with a small batch. Runs never overlap, thanks to a lock.
    ```cron
    */10 * * * *  zeroish run --pass fast --since 2h --limit 25 --apply             # new mail: pitches and promos out
-   5-59/10 * * * * zeroish run --pass cleanup --sweep --limit 20 --apply          # backlog, oldest first, bookmarked
+   5-59/10 * * * * zeroish run --sweep --limit 25 --apply                         # backlog, every rule, bookmarked
    ```
 7. Watch it: `zeroish status` reports last runs, moves per rule and folder, failures, and whether the classifier is
    answering. It exits 3 when unhealthy (no recent run, a failed run, or most mail unclassified), so a heartbeat

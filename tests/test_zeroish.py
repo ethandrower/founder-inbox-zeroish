@@ -544,6 +544,32 @@ class Operations(unittest.TestCase):
         engine.audit(self.cfg, {"cmd": "run", "lane": "new", "ok": True, "scanned": 10, "unclassified": 9})
         self.assertTrue(any("unclassified" in p for p in engine.status(self.cfg)["problems"]))
 
+    def test_finished_sweep_lap_is_recorded(self):
+        for _ in range(3):
+            engine.commit_sweep(self.cfg, engine.plan(self.cfg, self.box, "all", None, 2, self.clf, NOW, sweep=True))
+        self.assertTrue(engine.read_state(self.cfg).get("sweep_lap_at"))
+
+    def test_status_flags_a_stuck_or_leaky_sweep(self):
+        def at(when, entry):
+            with mock.patch.object(engine, "datetime") as dt:
+                dt.now.return_value = when
+                engine.audit(self.cfg, entry)
+        ok = {"cmd": "run", "ok": True, "scanned": 5, "unclassified": 0}
+        at(NOW - timedelta(hours=30), {**ok, "lane": "sweep"})
+        at(NOW - timedelta(minutes=5), {**ok, "lane": "new"})
+        at(NOW - timedelta(minutes=5), {**ok, "lane": "sweep", "overdue": 2})
+        problems = engine.status(self.cfg, now=NOW)["problems"]
+        self.assertTrue(any("hasn't finished a pass" in p for p in problems), problems)  # no lap in 30h
+        self.assertTrue(any("past the stale limit" in p for p in problems), problems)
+        later = engine.status(self.cfg, now=NOW + timedelta(hours=1))["problems"]
+        self.assertTrue(any("no backlog sweep run" in p for p in later), later)
+
+    def test_overdue_counts_kept_mail_past_the_stale_limit(self):
+        keep_all = [{"name": "keep-all", "when": {}, "then": "keep"}]
+        p = engine.plan({**self.cfg, "rules": rules.parse(keep_all, set(self.cfg["categories"]), 0.6)},
+                        self.box, "all", None, 5, self.clf, NOW, sweep=True)
+        self.assertEqual(p["overdue"], 0)  # the stale backstop moves them even past a keep rule
+
 
 if __name__ == "__main__":
     unittest.main()

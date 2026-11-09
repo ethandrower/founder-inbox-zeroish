@@ -39,6 +39,10 @@ def cmd_run(cfg, a):
     if mbx.user != cfg["owner"]["mailbox"]:
         raise PermissionError(f"signed in as {mbx.user}, config is for {cfg['owner']['mailbox']}")
     lane = "sweep" if a.sweep else "new"
+    if a.sweep:
+        # The sweep is the guarantee that every inbox email eventually meets every rule, so it never
+        # runs a subset. (Running it as --pass cleanup once left ~270 pitches the new-mail lane missed.)
+        a.pass_name = "all"
     with engine.RunLock(cfg) as got:
         if not got:
             engine.audit(cfg, {"cmd": "skip", "lane": lane, "why": "previous run still going"})
@@ -58,6 +62,7 @@ def cmd_run(cfg, a):
                            "scanned": planned["scanned"], "to_move": len(planned["to_move"]),
                            "moved": (applied or {}).get("moved", 0), "refused": len((applied or {}).get("refused", [])),
                            "unclassified": planned["unclassified"], "withheld": planned["withheld_sensitive"],
+                           "overdue": planned.get("overdue", 0),
                            "duration_s": round(time.time() - started, 1)})
     if applied is not None:
         planned["applied"] = applied
@@ -136,7 +141,8 @@ def build_parser():
     ru.add_argument("--apply", action="store_true", help="move what the rules decide")
     ru.add_argument("--brief", action="store_true", help="shorter 'kept' list")
     ru.add_argument("--sweep", action="store_true",
-                    help="backlog lane: oldest first from a saved bookmark, --limit per run")
+                    help="backlog lane: walks the whole inbox from a saved bookmark, --limit per run, "
+                         "always with every rule")
     ru.set_defaults(fn=cmd_run)
     mv = sub.add_parser("move", help="move specific inbox emails by id (same guardrails as --apply)")
     mv.add_argument("--id", action="append", required=True)
