@@ -1,0 +1,138 @@
+<svg viewBox="0 0 760 624" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica Neue, Arial, sans-serif">
+<defs><marker id="mute" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#7a869a"/></marker></defs>
+<rect width="760" height="624" fill="#ffffff"/>
+<text x="20" y="26" font-size="14" font-weight="700" fill="#0b2545" text-anchor="start">How Founder Inbox Zeroish Works</text>
+<text x="20" y="50" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="start">Every Email, The Same Steps</text>
+<rect x="20" y="84" width="94" height="44" rx="7" fill="#fff" stroke="#cdd6e4" stroke-width="1.5"/>
+<text x="67" y="110" font-size="10.5" font-weight="700" fill="#0b2545" text-anchor="middle">New Email</text>
+<line x1="114" y1="106" x2="129" y2="106" stroke="#7a869a" stroke-width="2" marker-end="url(#mute)"/>
+<rect x="132" y="62" width="320" height="88" rx="7" fill="#f4f7fc" stroke="#cdd6e4" stroke-width="1.5"/>
+<text x="144" y="80" font-size="10.5" font-weight="700" fill="#0b2545" text-anchor="start">1. Gather Facts</text>
+<rect x="142" y="92" width="54" height="46" rx="6" fill="#fff" stroke="#cdd6e4" stroke-width="1.5"/>
+<text x="169" y="111" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="middle">Sender</text>
+<text x="169" y="125" font-size="7.5" font-weight="400" fill="#37455b" text-anchor="middle">Who It Is</text>
+<rect x="201" y="92" width="54" height="46" rx="6" fill="#fff" stroke="#cdd6e4" stroke-width="1.5"/>
+<text x="228" y="111" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="middle">Age</text>
+<text x="228" y="125" font-size="7.5" font-weight="400" fill="#37455b" text-anchor="middle">In Hours</text>
+<rect x="260" y="92" width="54" height="46" rx="6" fill="#fff" stroke="#cdd6e4" stroke-width="1.5"/>
+<text x="287" y="111" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="middle">Read</text>
+<text x="287" y="125" font-size="7.5" font-weight="400" fill="#37455b" text-anchor="middle">Yes Or No</text>
+<rect x="319" y="92" width="54" height="46" rx="6" fill="#fff" stroke="#cdd6e4" stroke-width="1.5"/>
+<text x="346" y="111" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="middle">Replied</text>
+<text x="346" y="125" font-size="7.5" font-weight="400" fill="#37455b" text-anchor="middle">Who Last</text>
+<rect x="378" y="92" width="64" height="46" rx="6" fill="#eef3fb" stroke="#1d5fbf" stroke-width="3"/>
+<text x="410" y="111" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="middle">Content</text>
+<text x="410" y="125" font-size="7.5" font-weight="400" fill="#37455b" text-anchor="middle">One LLM Call</text>
+<line x1="452" y1="106" x2="467" y2="106" stroke="#7a869a" stroke-width="2" marker-end="url(#mute)"/>
+<rect x="470" y="62" width="130" height="88" rx="7" fill="#0b2545"/>
+<text x="535" y="100" font-size="10.5" font-weight="700" fill="#fff" text-anchor="middle">2. Apply Rules</text>
+<text x="535" y="116" font-size="8.5" font-weight="400" fill="#c7d5ee" text-anchor="middle">First Match Wins</text>
+<line x1="600" y1="82" x2="615" y2="82" stroke="#7a869a" stroke-width="2" marker-end="url(#mute)"/>
+<line x1="600" y1="130" x2="615" y2="130" stroke="#7a869a" stroke-width="2" marker-end="url(#mute)"/>
+<rect x="618" y="62" width="122" height="40" rx="6" fill="#e7f4ec" stroke="#2e7d51" stroke-width="1.6"/>
+<text x="679" y="86" font-size="10" font-weight="700" fill="#2e7d51" text-anchor="middle">Stays In Inbox</text>
+<rect x="618" y="110" width="122" height="40" rx="6" fill="#fff" stroke="#cdd6e4" stroke-width="1.5"/>
+<text x="679" y="134" font-size="10" font-weight="700" fill="#0b2545" text-anchor="middle">Moves To A Folder</text>
+<text x="20" y="178" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="start">The Rules, In Order</text>
+<rect x="20" y="188" width="720" height="286" rx="7" fill="#fff" stroke="#cdd6e4" stroke-width="1.5"/>
+<text x="58" y="204" font-size="8.5" font-weight="700" fill="#7a869a" text-anchor="start">If The Email Is</text>
+<text x="330" y="204" font-size="8.5" font-weight="700" fill="#7a869a" text-anchor="start">When</text>
+<text x="556" y="204" font-size="8.5" font-weight="700" fill="#7a869a" text-anchor="start">Then</text>
+<line x1="20" y1="212" x2="740" y2="212" stroke="#cdd6e4" stroke-width="0.8"/>
+<text x="40" y="229" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="middle">1</text>
+<text x="58" y="229" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="start">From a priority sender</text>
+<text x="330" y="229" font-size="9" font-weight="400" fill="#37455b" text-anchor="start">Always</text>
+<rect x="556" y="216" width="168" height="18" rx="6" fill="#e7f4ec" stroke="#2e7d51" stroke-width="1.2"/>
+<text x="640" y="228.5" font-size="8.5" font-weight="700" fill="#2e7d51" text-anchor="middle">Stays In Inbox</text>
+<line x1="20" y1="238" x2="740" y2="238" stroke="#cdd6e4" stroke-width="0.8"/>
+<text x="40" y="255" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="middle">2</text>
+<text x="58" y="255" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="start">A thread where you replied last</text>
+<text x="330" y="255" font-size="9" font-weight="400" fill="#37455b" text-anchor="start">On the next sweep</text>
+<rect x="556" y="242" width="168" height="18" rx="6" fill="#f4f7fc" stroke="#cdd6e4" stroke-width="1.2"/>
+<text x="640" y="254.5" font-size="8.5" font-weight="700" fill="#0b2545" text-anchor="middle">Archive</text>
+<line x1="20" y1="264" x2="740" y2="264" stroke="#cdd6e4" stroke-width="0.8"/>
+<text x="40" y="281" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="middle">3</text>
+<text x="58" y="281" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="start">Asking you to do something</text>
+<text x="330" y="281" font-size="9" font-weight="400" fill="#37455b" text-anchor="start">Always</text>
+<rect x="556" y="268" width="168" height="18" rx="6" fill="#e7f4ec" stroke="#2e7d51" stroke-width="1.2"/>
+<text x="640" y="280.5" font-size="8.5" font-weight="700" fill="#2e7d51" text-anchor="middle">Stays In Inbox</text>
+<line x1="20" y1="290" x2="740" y2="290" stroke="#cdd6e4" stroke-width="0.8"/>
+<text x="40" y="307" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="middle">4</text>
+<text x="58" y="307" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="start">A cold pitch from a stranger</text>
+<text x="330" y="307" font-size="9" font-weight="400" fill="#37455b" text-anchor="start">Within minutes</text>
+<rect x="556" y="294" width="168" height="18" rx="6" fill="#f4f7fc" stroke="#cdd6e4" stroke-width="1.2"/>
+<text x="640" y="306.5" font-size="8.5" font-weight="700" fill="#0b2545" text-anchor="middle">Cold Outreach</text>
+<line x1="20" y1="316" x2="740" y2="316" stroke="#cdd6e4" stroke-width="0.8"/>
+<text x="40" y="333" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="middle">5</text>
+<text x="58" y="333" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="start">A newsletter or promotion</text>
+<text x="330" y="333" font-size="9" font-weight="400" fill="#37455b" text-anchor="start">Within minutes</text>
+<rect x="556" y="320" width="168" height="18" rx="6" fill="#f4f7fc" stroke="#cdd6e4" stroke-width="1.2"/>
+<text x="640" y="332.5" font-size="8.5" font-weight="700" fill="#0b2545" text-anchor="middle">Newsletters</text>
+<line x1="20" y1="342" x2="740" y2="342" stroke="#cdd6e4" stroke-width="0.8"/>
+<text x="40" y="359" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="middle">6</text>
+<text x="58" y="359" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="start">A digest</text>
+<text x="330" y="359" font-size="9" font-weight="400" fill="#37455b" text-anchor="start">After 24 hours</text>
+<rect x="556" y="346" width="168" height="18" rx="6" fill="#f4f7fc" stroke="#cdd6e4" stroke-width="1.2"/>
+<text x="640" y="358.5" font-size="8.5" font-weight="700" fill="#0b2545" text-anchor="middle">Notifications</text>
+<line x1="20" y1="368" x2="740" y2="368" stroke="#cdd6e4" stroke-width="0.8"/>
+<text x="40" y="385" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="middle">7</text>
+<text x="58" y="385" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="start">A notification</text>
+<text x="330" y="385" font-size="9" font-weight="400" fill="#37455b" text-anchor="start">After 32 hours</text>
+<rect x="556" y="372" width="168" height="18" rx="6" fill="#f4f7fc" stroke="#cdd6e4" stroke-width="1.2"/>
+<text x="640" y="384.5" font-size="8.5" font-weight="700" fill="#0b2545" text-anchor="middle">Notifications</text>
+<line x1="20" y1="394" x2="740" y2="394" stroke="#cdd6e4" stroke-width="0.8"/>
+<text x="40" y="411" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="middle">8</text>
+<text x="58" y="411" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="start">From a customer, once read</text>
+<text x="330" y="411" font-size="9" font-weight="400" fill="#37455b" text-anchor="start">After 24 hours</text>
+<rect x="556" y="398" width="168" height="18" rx="6" fill="#f4f7fc" stroke="#cdd6e4" stroke-width="1.2"/>
+<text x="640" y="410.5" font-size="8.5" font-weight="700" fill="#0b2545" text-anchor="middle">Customer Projects</text>
+<line x1="20" y1="420" x2="740" y2="420" stroke="#cdd6e4" stroke-width="0.8"/>
+<text x="40" y="437" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="middle">9</text>
+<text x="58" y="437" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="start">PR or marketing, once read</text>
+<text x="330" y="437" font-size="9" font-weight="400" fill="#37455b" text-anchor="start">After 24 hours</text>
+<rect x="556" y="424" width="168" height="18" rx="6" fill="#f4f7fc" stroke="#cdd6e4" stroke-width="1.2"/>
+<text x="640" y="436.5" font-size="8.5" font-weight="700" fill="#0b2545" text-anchor="middle">PR &amp; Marketing</text>
+<path d="M20,446 H740 V467 a7,7 0 0 1 -7,7 H27 a7,7 0 0 1 -7,-7 Z" fill="#eef3fb" stroke="#cdd6e4" stroke-width="0.8"/>
+<text x="58" y="464" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="start">Backstop: anything still there</text>
+<text x="330" y="464" font-size="9" font-weight="400" fill="#37455b" text-anchor="start">After 30 days</text>
+<rect x="556" y="451" width="168" height="18" rx="6" fill="#fff" stroke="#cdd6e4" stroke-width="1.2"/>
+<text x="640" y="463.5" font-size="8.5" font-weight="700" fill="#0b2545" text-anchor="middle">Its Folder, Or Archive</text>
+<rect x="20" y="188" width="720" height="286" rx="7" fill="none" stroke="#cdd6e4" stroke-width="1.5"/>
+<text x="20" y="500" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="start">When It Runs: Two Lanes, Every 10 Minutes</text>
+<rect x="20" y="510" width="420" height="96" rx="7" fill="#f4f7fc" stroke="#cdd6e4" stroke-width="1.5"/>
+<text x="32" y="539" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="start">New Mail Lane</text>
+<text x="32" y="550" font-size="7.5" font-weight="400" fill="#37455b" text-anchor="start">Last 6 hours, 25 emails</text>
+<line x1="160.0" y1="540" x2="410.0" y2="540" stroke="#cdd6e4" stroke-width="1"/>
+<circle cx="160.0" cy="540" r="4" fill="#0b2545"/>
+<circle cx="201.7" cy="540" r="4" fill="#0b2545"/>
+<circle cx="243.3" cy="540" r="4" fill="#0b2545"/>
+<circle cx="285.0" cy="540" r="4" fill="#0b2545"/>
+<circle cx="326.7" cy="540" r="4" fill="#0b2545"/>
+<circle cx="368.3" cy="540" r="4" fill="#0b2545"/>
+<text x="32" y="571" font-size="9.5" font-weight="700" fill="#0b2545" text-anchor="start">Backlog Sweep</text>
+<text x="32" y="582" font-size="7.5" font-weight="400" fill="#37455b" text-anchor="start">Whole inbox, 25 at a time</text>
+<line x1="160.0" y1="572" x2="410.0" y2="572" stroke="#cdd6e4" stroke-width="1"/>
+<circle cx="180.8" cy="572" r="4" fill="#0b2545"/>
+<circle cx="222.5" cy="572" r="4" fill="#0b2545"/>
+<circle cx="264.2" cy="572" r="4" fill="#0b2545"/>
+<circle cx="305.8" cy="572" r="4" fill="#0b2545"/>
+<circle cx="347.5" cy="572" r="4" fill="#0b2545"/>
+<circle cx="389.2" cy="572" r="4" fill="#0b2545"/>
+<text x="160.0" y="596" font-size="8" font-weight="400" fill="#7a869a" text-anchor="middle">:00</text>
+<text x="201.66666666666666" y="596" font-size="8" font-weight="400" fill="#7a869a" text-anchor="middle">:10</text>
+<text x="243.33333333333331" y="596" font-size="8" font-weight="400" fill="#7a869a" text-anchor="middle">:20</text>
+<text x="285.0" y="596" font-size="8" font-weight="400" fill="#7a869a" text-anchor="middle">:30</text>
+<text x="326.66666666666663" y="596" font-size="8" font-weight="400" fill="#7a869a" text-anchor="middle">:40</text>
+<text x="368.33333333333337" y="596" font-size="8" font-weight="400" fill="#7a869a" text-anchor="middle">:50</text>
+<text x="410.0" y="596" font-size="8" font-weight="400" fill="#7a869a" text-anchor="middle">:00</text>
+<text x="456" y="500" font-size="9.5" font-weight="700" fill="#7a869a" text-anchor="start">Guardrails</text>
+<rect x="456" y="510" width="284" height="96" rx="7" fill="#fbeef0" stroke="#b23a48" stroke-width="1.6"/>
+<circle cx="472" cy="531" r="2.2" fill="#b23a48"/>
+<text x="482" y="534" font-size="8.8" font-weight="400" fill="#0b2545" text-anchor="start">Only moves mail. Never sends, replies or deletes.</text>
+<circle cx="472" cy="550" r="2.2" fill="#b23a48"/>
+<text x="482" y="553" font-size="8.8" font-weight="400" fill="#0b2545" text-anchor="start">At most 50 moves per run.</text>
+<circle cx="472" cy="569" r="2.2" fill="#b23a48"/>
+<text x="482" y="572" font-size="8.8" font-weight="400" fill="#0b2545" text-anchor="start">No answer from the model, no move.</text>
+<circle cx="472" cy="588" r="2.2" fill="#b23a48"/>
+<text x="482" y="591" font-size="8.8" font-weight="400" fill="#0b2545" text-anchor="start">Every move is logged, and undone by dragging it back.</text>
+</svg>
