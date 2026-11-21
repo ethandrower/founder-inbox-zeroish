@@ -6,12 +6,20 @@ Cold outreach and promotions leave the inbox within minutes. Notifications, dige
 answered get filed later. Anything that needs you stays put. One LLM call per email at most, and declarative rules
 you can read, lint and explain. Prompts stay out of the rules, so they can't drift into conflicting instructions.
 
+![Inbox count falling from 46,000 emails to the 90s in two weeks](docs/img/inbox-count.png)
+
+*The author's own inbox: bulk archive on day one, then the rules below keeping it under 100.*
+
 ```
 email ──► facts ──────────────────────────► rules (first match wins) ──► keep | move to folder
           sender:  priority/internal/correspondent/unknown      ▲
           age_h, read, replied: never/before_latest/after_latest │
           content: ONE classifier call, only if a rule needs it ┘
 ```
+
+![How it works: gather facts, apply ordered rules, two scheduled lanes, guardrails](docs/img/how-it-works.png)
+
+*The nine rules shown are one example set, from the author's config. Yours are whatever you write.*
 
 ## Why "ish"
 
